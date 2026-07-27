@@ -1,3 +1,4 @@
+import os
 from typing import Dict, List, Literal, Optional
 from urllib.parse import urlparse
 
@@ -89,6 +90,16 @@ class LoginRequest(BaseModel):
 class LoginResponse(BaseModel):
     token: str
     role: str
+
+
+DEFAULT_AUTH_USERNAME = "desih26"
+DEFAULT_AUTH_PASSWORD = "Win@2026SIH!"
+
+
+def get_expected_auth_credentials() -> tuple[str, str]:
+    username = os.getenv("JANSAHAYAK_USERNAME", DEFAULT_AUTH_USERNAME).strip()
+    password = os.getenv("JANSAHAYAK_PASSWORD", DEFAULT_AUTH_PASSWORD).strip()
+    return username, password
 
 
 class SecurityScanResponse(BaseModel):
@@ -296,7 +307,9 @@ def retrieve_knowledge(query: str) -> ChatResponse:
 
 @app.post("/api/auth/login", response_model=LoginResponse)
 def authenticate(payload: LoginRequest) -> LoginResponse:
-    if payload.username == "admin" and payload.password == "Secure@2026!":
+    expected_username, expected_password = get_expected_auth_credentials()
+
+    if payload.username == expected_username and payload.password == expected_password:
         return LoginResponse(token="demo-admin-token", role="admin")
 
     raise HTTPException(status_code=401, detail="Invalid username or password")

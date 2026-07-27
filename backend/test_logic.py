@@ -1,10 +1,13 @@
+import os
 import unittest
 
 from main import (
     ChatRequest,
     EligibilityRequest,
+    LoginRequest,
     SecurityScanRequest,
     SpeechRequest,
+    authenticate,
     chat,
     check_eligibility,
     security_scan,
@@ -50,6 +53,28 @@ class JanSahayakBackendTests(unittest.TestCase):
 
         self.assertIn(response.confidence, {"high", "medium", "low"})
         self.assertGreater(len(response.references), 0)
+
+    def test_auth_accepts_credentials_from_environment(self) -> None:
+        original_username = os.environ.get("JANSAHAYAK_USERNAME")
+        original_password = os.environ.get("JANSAHAYAK_PASSWORD")
+
+        os.environ["JANSAHAYAK_USERNAME"] = "desih26"
+        os.environ["JANSAHAYAK_PASSWORD"] = "Win@2026SIH!"
+
+        try:
+            response = authenticate(LoginRequest(username="desih26", password="Win@2026SIH!"))
+            self.assertEqual(response.role, "admin")
+            self.assertEqual(response.token, "demo-admin-token")
+        finally:
+            if original_username is None:
+                os.environ.pop("JANSAHAYAK_USERNAME", None)
+            else:
+                os.environ["JANSAHAYAK_USERNAME"] = original_username
+
+            if original_password is None:
+                os.environ.pop("JANSAHAYAK_PASSWORD", None)
+            else:
+                os.environ["JANSAHAYAK_PASSWORD"] = original_password
 
 
 if __name__ == "__main__":
