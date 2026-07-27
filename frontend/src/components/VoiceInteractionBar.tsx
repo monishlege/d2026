@@ -2,6 +2,7 @@ import { Languages, Mic, SendHorizonal } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { useAssistantStore } from "@/store/useAssistantStore";
+import { detectLanguageFromText, getSiteText } from "@/lib/i18n";
 import type { LanguageCode } from "@/types";
 
 const languageOptions: Array<{ label: string; value: LanguageCode }> = [
@@ -24,6 +25,8 @@ export default function VoiceInteractionBar({ onSubmit }: VoiceInteractionBarPro
     setLanguage,
     transcript,
     setTranscript,
+    siteLanguage,
+    setSiteLanguage,
     quickPrompts,
     isProcessingVoice,
   } = useAssistantStore();
@@ -68,7 +71,7 @@ export default function VoiceInteractionBar({ onSubmit }: VoiceInteractionBarPro
               value={selectedLanguage}
               onChange={(event) => setLanguage(event.target.value as LanguageCode)}
               className="rounded-full border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none transition hover:border-cyan-300/40"
-              aria-label="Select language"
+              aria-label={getSiteText("voice.regionLabel", siteLanguage)}
             >
               {languageOptions.map((option) => (
                 <option key={option.value} value={option.value} className="bg-slate-950">
@@ -80,20 +83,27 @@ export default function VoiceInteractionBar({ onSubmit }: VoiceInteractionBarPro
 
           <textarea
             value={transcript}
-            onChange={(event) => setTranscript(event.target.value)}
-            placeholder="Speak or type your scheme question here..."
+            onChange={(event) => {
+              setTranscript(event.target.value);
+              setSiteLanguage(detectLanguageFromText(event.target.value));
+            }}
+            placeholder={getSiteText("voice.placeholder", siteLanguage)}
             className="h-28 w-full resize-none rounded-[20px] border border-white/10 bg-slate-900/80 p-4 text-sm text-slate-100 outline-none transition focus:border-cyan-300/50"
           />
         </div>
 
         <button
           type="button"
-          onClick={() => void onSubmit(transcript)}
+          onClick={async () => {
+            const detected = detectLanguageFromText(transcript);
+            setSiteLanguage(detected);
+            await onSubmit(transcript);
+          }}
           disabled={!transcript.trim() || isProcessingVoice}
           className="inline-flex h-14 items-center justify-center gap-2 rounded-full border border-orange-300/40 bg-orange-300/10 px-6 text-sm font-semibold text-orange-50 transition hover:-translate-y-0.5 hover:bg-orange-300/20 disabled:cursor-not-allowed disabled:opacity-60"
         >
           <SendHorizonal className="h-4 w-4" />
-          {isProcessingVoice ? "Interpreting..." : "Process Voice"}
+          {isProcessingVoice ? getSiteText("voice.interpreting", siteLanguage) : getSiteText("voice.process", siteLanguage)}
         </button>
       </div>
 
@@ -114,7 +124,7 @@ export default function VoiceInteractionBar({ onSubmit }: VoiceInteractionBarPro
         {mockListening || isProcessingVoice ? (
           visualBars
         ) : (
-          <p className="text-sm text-slate-400">Voice visualizer activates during mock listening or intent processing.</p>
+          <p className="text-sm text-slate-400">{getSiteText("voice.visualizer", siteLanguage)}</p>
         )}
       </div>
     </div>

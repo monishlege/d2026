@@ -9,6 +9,7 @@ import SchemeHighlights from "@/components/SchemeHighlights";
 import VoiceInteractionBar from "@/components/VoiceInteractionBar";
 import { useAssistantStore } from "@/store/useAssistantStore";
 import { askChat, fetchSchemes, submitSpeech } from "@/utils/api";
+import { getSiteLanguageLabel, getSiteText } from "@/lib/i18n";
 import type { SchemeSummary } from "@/types";
 
 interface HomeProps {
@@ -20,6 +21,7 @@ export default function Home({ onLogout }: HomeProps) {
   const [loadingSchemes, setLoadingSchemes] = useState(true);
   const {
     selectedLanguage,
+    siteLanguage,
     chatResult,
     detectedIntent,
     transcript,
@@ -86,22 +88,25 @@ export default function Home({ onLogout }: HomeProps) {
           <div className="space-y-6">
             <div className="inline-flex items-center gap-3 rounded-full border border-orange-300/30 bg-orange-300/10 px-4 py-2 text-xs uppercase tracking-[0.25em] text-orange-50">
               <ShieldCheck className="h-4 w-4" />
-              BHARAT PRAGATI Track
+              {getSiteText("home.trackLabel", siteLanguage)}
             </div>
             <div className="space-y-4">
-              <p className="text-xs uppercase tracking-[0.35em] text-cyan-200/70">Voice-first welfare assistance</p>
+              <p className="text-xs uppercase tracking-[0.35em] text-cyan-200/70">{getSiteText("home.eyebrow", siteLanguage)}</p>
               <h1 className="font-display text-5xl leading-none text-white md:text-7xl">
-                JanSahayak AI
+                {getSiteText("home.heroTitle", siteLanguage)}
               </h1>
               <p className="max-w-2xl text-sm leading-7 text-slate-300 md:text-base">
-                A multilingual digital assistant for government welfare guidance, secure document retrieval, and phishing-aware service discovery.
+                {getSiteText("home.heroDescription", siteLanguage)}
               </p>
+              <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs uppercase tracking-[0.22em] text-slate-300">
+                {getSiteText("home.siteLanguage", siteLanguage)}: {getSiteLanguageLabel(siteLanguage)}
+              </div>
             </div>
 
             <div className="grid gap-3 md:grid-cols-3">
-              <FeatureChip icon={AudioLines} label="Mock Bhashini intake" detail="Hindi to Bengali speech normalization" />
-              <FeatureChip icon={Languages} label="Trust-aware responses" detail="Confidence guidance for every answer" />
-              <FeatureChip icon={ShieldCheck} label="Secure pathways" detail="Eligibility, DigiLocker, and anti-fraud tools" />
+              <FeatureChip icon={AudioLines} label={getSiteText("home.feature1.label", siteLanguage)} detail={getSiteText("home.feature1.detail", siteLanguage)} />
+              <FeatureChip icon={Languages} label={getSiteText("home.feature2.label", siteLanguage)} detail={getSiteText("home.feature2.detail", siteLanguage)} />
+              <FeatureChip icon={ShieldCheck} label={getSiteText("home.feature3.label", siteLanguage)} detail={getSiteText("home.feature3.detail", siteLanguage)} />
             </div>
           </div>
 
@@ -110,20 +115,19 @@ export default function Home({ onLogout }: HomeProps) {
             <div className="mt-6 rounded-[24px] border border-white/10 bg-white/[0.04] p-5">
               <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <p className="text-xs uppercase tracking-[0.28em] text-slate-400">AI Response Channel</p>
-                  <h2 className="mt-2 font-display text-3xl text-white">Guidance outcome</h2>
+                  <p className="text-xs uppercase tracking-[0.28em] text-slate-400">{getSiteText("home.responseChannel", siteLanguage)}</p>
+                  <h2 className="mt-2 font-display text-3xl text-white">{getSiteText("home.guidanceOutcome", siteLanguage)}</h2>
                 </div>
-                {chatResult ? <ConfidenceBadge confidence={chatResult.confidence} /> : null}
               </div>
 
               {chatResult ? (
                 <div className="space-y-4">
                   <div className="rounded-[20px] border border-white/10 bg-slate-950/60 p-4">
-                    <p className="text-[11px] uppercase tracking-[0.28em] text-cyan-200/70">Normalized transcript</p>
+                    <p className="text-[11px] uppercase tracking-[0.28em] text-cyan-200/70">{getSiteText("home.transcriptLabel", siteLanguage)}</p>
                     <p className="mt-2 text-sm leading-6 text-slate-100">{transcript}</p>
                   </div>
                   <div className="rounded-[20px] border border-white/10 bg-slate-950/60 p-4">
-                    <p className="text-[11px] uppercase tracking-[0.28em] text-cyan-200/70">Detected intent</p>
+                    <p className="text-[11px] uppercase tracking-[0.28em] text-cyan-200/70">{getSiteText("home.intentLabel", siteLanguage)}</p>
                     <div className="mt-3 inline-flex rounded-full bg-white/5 px-3 py-2 text-xs uppercase tracking-[0.22em] text-slate-200">
                       {detectedIntent}
                     </div>
@@ -139,7 +143,7 @@ export default function Home({ onLogout }: HomeProps) {
                 </div>
               ) : (
                 <div className="rounded-[20px] border border-dashed border-white/10 bg-white/[0.03] p-5 text-sm leading-6 text-slate-400">
-                  Ask a question in any supported language and the assistant will convert it into a structured English intent before returning a confidence-scored answer.
+                  {getSiteText("home.placeholder", siteLanguage)}
                 </div>
               )}
             </div>
@@ -150,11 +154,11 @@ export default function Home({ onLogout }: HomeProps) {
       <section className="space-y-5">
         <div className="flex items-center justify-between gap-4">
           <div>
-            <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Priority schemes</p>
-            <h2 className="mt-2 font-display text-4xl text-white">National welfare tracks in one dashboard</h2>
+            <p className="text-xs uppercase tracking-[0.3em] text-slate-500">{getSiteText("home.prioritySchemes", siteLanguage)}</p>
+            <h2 className="mt-2 font-display text-4xl text-white">{getSiteText("home.prioritySchemesTitle", siteLanguage)}</h2>
           </div>
           <div className="hidden items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs uppercase tracking-[0.22em] text-slate-300 md:inline-flex">
-            Explore prototype modules
+            {getSiteText("home.exploreModules", siteLanguage)}
             <ArrowRight className="h-4 w-4" />
           </div>
         </div>

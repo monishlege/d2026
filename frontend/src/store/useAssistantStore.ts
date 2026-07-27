@@ -4,12 +4,14 @@ import type { ChatResponse, ConfidenceLevel, IntentType, LanguageCode } from "@/
 
 interface AssistantState {
   selectedLanguage: LanguageCode;
+  siteLanguage: "en" | "hi" | "kn";
   transcript: string;
   detectedIntent: IntentType | null;
   chatResult: ChatResponse | null;
   isProcessingVoice: boolean;
   quickPrompts: string[];
   setLanguage: (language: LanguageCode) => void;
+  setSiteLanguage: (language: "en" | "hi" | "kn") => void;
   setTranscript: (value: string) => void;
   startVoiceProcessing: () => void;
   finishVoiceProcessing: (payload: {
@@ -34,12 +36,14 @@ export const confidenceActionMap: Record<ConfidenceLevel, string> = {
 
 export const useAssistantStore = create<AssistantState>((set) => ({
   selectedLanguage: "hi",
+  siteLanguage: "en",
   transcript: "",
   detectedIntent: null,
   chatResult: null,
   isProcessingVoice: false,
   quickPrompts: defaultQuickPrompts,
   setLanguage: (language) => set({ selectedLanguage: language }),
+  setSiteLanguage: (language) => set({ siteLanguage: language }),
   setTranscript: (value) => set({ transcript: value }),
   startVoiceProcessing: () => set({ isProcessingVoice: true }),
   finishVoiceProcessing: ({ transcript, intent, chatResult }) =>

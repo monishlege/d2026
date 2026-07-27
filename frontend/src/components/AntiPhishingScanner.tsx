@@ -2,6 +2,8 @@ import { AlertTriangle, CheckCheck, GlobeLock, Radar } from "lucide-react";
 import { useState } from "react";
 
 import SectionShell from "@/components/SectionShell";
+import { useAssistantStore } from "@/store/useAssistantStore";
+import { getSiteText } from "@/lib/i18n";
 import { scanUrl } from "@/utils/api";
 import type { SecurityScanResponse } from "@/types";
 
@@ -12,6 +14,7 @@ const sampleLinks = [
 ];
 
 export default function AntiPhishingScanner() {
+  const { siteLanguage } = useAssistantStore();
   const [url, setUrl] = useState(sampleLinks[1]);
   const [result, setResult] = useState<SecurityScanResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -28,20 +31,20 @@ export default function AntiPhishingScanner() {
 
   return (
     <SectionShell
-      eyebrow="Security Dashboard"
-      title="Anti-phishing scan for benefit and loan portals"
-      description="Before a citizen shares data or clicks a scheme link, the scanner inspects trust signals, official domain patterns, and common spoofing tactics."
+      eyebrow={getSiteText("security.eyebrow", siteLanguage)}
+      title={getSiteText("security.title", siteLanguage)}
+      description={getSiteText("security.description", siteLanguage)}
     >
       <div className="grid gap-6 xl:grid-cols-[0.9fr,1.1fr]">
         <div className="rounded-[24px] border border-white/10 bg-slate-950/50 p-5">
           <label className="space-y-2 text-sm text-slate-300">
-            <span>Suspicious URL</span>
+            <span>{getSiteText("security.urlLabel", siteLanguage)}</span>
             <input
               type="url"
               value={url}
               onChange={(event) => setUrl(event.target.value)}
               className="w-full rounded-[20px] border border-white/10 bg-white/5 px-4 py-3 text-white outline-none"
-              placeholder="Paste a scheme or benefit portal URL"
+              placeholder={getSiteText("security.placeholder", siteLanguage)}
             />
           </label>
 
@@ -65,7 +68,7 @@ export default function AntiPhishingScanner() {
             className="mt-5 inline-flex items-center gap-2 rounded-full border border-orange-300/30 bg-orange-300/10 px-5 py-3 text-sm font-semibold text-orange-50 transition hover:bg-orange-300/20 disabled:opacity-60"
           >
             <Radar className="h-4 w-4" />
-            {isLoading ? "Scanning..." : "Analyze URL"}
+            {isLoading ? getSiteText("security.scanning", siteLanguage) : getSiteText("security.analyze", siteLanguage)}
           </button>
         </div>
 
@@ -74,16 +77,16 @@ export default function AntiPhishingScanner() {
             <div className="space-y-5">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Safety score</p>
-                  <p className="font-display text-5xl text-white">{result.score}</p>
-                </div>
-                <span
-                  className={`rounded-full px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] ${
-                    result.safe ? "bg-emerald-400/15 text-emerald-100" : "bg-rose-400/15 text-rose-100"
-                  }`}
-                >
-                  {result.safe ? "Likely official" : "Potentially unsafe"}
-                </span>
+                    <p className="text-xs uppercase tracking-[0.3em] text-slate-400">{getSiteText("security.safetyScore", siteLanguage)}</p>
+                    <p className="font-display text-5xl text-white">{result.score}</p>
+                  </div>
+                  <span
+                    className={`rounded-full px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] ${
+                      result.safe ? "bg-emerald-400/15 text-emerald-100" : "bg-rose-400/15 text-rose-100"
+                    }`}
+                  >
+                    {result.safe ? getSiteText("security.official", siteLanguage) : getSiteText("security.unsafe", siteLanguage)}
+                  </span>
               </div>
 
               <div className="h-3 overflow-hidden rounded-full bg-white/5">
@@ -93,23 +96,23 @@ export default function AntiPhishingScanner() {
               <div className="grid gap-4 md:grid-cols-2">
                 <SignalCard
                   icon={result.safe ? CheckCheck : AlertTriangle}
-                  title="Threat indicators"
+                  title={getSiteText("security.threats", siteLanguage)}
                   detail={result.indicators.join(" ")}
                 />
                 <SignalCard
                   icon={GlobeLock}
-                  title="Official portal verification"
+                  title={getSiteText("security.portalVerification", siteLanguage)}
                   detail={
                     result.official_portal_match
-                      ? "This hostname matches a known official portal pattern."
-                      : "No match found in the trusted government portal list."
+                      ? getSiteText("security.portalMatch", siteLanguage)
+                      : getSiteText("security.portalNoMatch", siteLanguage)
                   }
                 />
               </div>
             </div>
           ) : (
             <div className="rounded-[20px] border border-dashed border-white/10 bg-white/[0.03] p-5 text-sm leading-6 text-slate-400">
-              Run a scan to inspect SSL presence, suspicious keywords, spoofed domain patterns, and known official portal matches.
+              {getSiteText("security.emptyState", siteLanguage)}
             </div>
           )}
         </div>

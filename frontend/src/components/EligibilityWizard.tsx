@@ -2,6 +2,8 @@ import { CheckCircle2, ChevronRight, ShieldAlert, XCircle } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import SectionShell from "@/components/SectionShell";
+import { useAssistantStore } from "@/store/useAssistantStore";
+import { getSiteText } from "@/lib/i18n";
 import { checkEligibility } from "@/utils/api";
 import type { EligibilityRequest, EligibilityResponse, SchemeSummary } from "@/types";
 
@@ -22,10 +24,18 @@ interface EligibilityWizardProps {
 }
 
 export default function EligibilityWizard({ schemes }: EligibilityWizardProps) {
+  const { siteLanguage } = useAssistantStore();
   const [step, setStep] = useState(0);
   const [form, setForm] = useState<EligibilityRequest>(initialForm);
   const [result, setResult] = useState<EligibilityResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const yesLabel = getSiteText("eligibility.toggleYes", siteLanguage);
+  const noLabel = getSiteText("eligibility.toggleNo", siteLanguage);
+  const stepTitles = [
+    getSiteText("eligibility.step1", siteLanguage),
+    getSiteText("eligibility.step2", siteLanguage),
+    getSiteText("eligibility.step3", siteLanguage),
+  ];
 
   const selectedScheme = useMemo(
     () => schemes.find((scheme) => scheme.name === form.scheme_name),
@@ -48,9 +58,9 @@ export default function EligibilityWizard({ schemes }: EligibilityWizardProps) {
 
   return (
     <SectionShell
-      eyebrow="Eligibility Engine"
-      title="Scheme match with transparent rule checks"
-      description="We keep the decision path visible so citizens can see exactly why a scheme passed, failed, or needs more evidence."
+      eyebrow={getSiteText("eligibility.eyebrow", siteLanguage)}
+      title={getSiteText("eligibility.title", siteLanguage)}
+      description={getSiteText("eligibility.description", siteLanguage)}
     >
       <div className="grid gap-6 xl:grid-cols-[1.2fr,0.8fr]">
         <div className="space-y-5 rounded-[24px] border border-white/10 bg-slate-950/50 p-5">
@@ -74,7 +84,7 @@ export default function EligibilityWizard({ schemes }: EligibilityWizardProps) {
           {step === 0 ? (
             <div className="grid gap-4 md:grid-cols-2">
               <label className="space-y-2 text-sm text-slate-300">
-                <span>Scheme</span>
+                <span>{getSiteText("eligibility.scheme", siteLanguage)}</span>
                 <select
                   value={form.scheme_name}
                   onChange={(event) => updateForm("scheme_name", event.target.value)}
@@ -88,7 +98,7 @@ export default function EligibilityWizard({ schemes }: EligibilityWizardProps) {
                 </select>
               </label>
               <label className="space-y-2 text-sm text-slate-300">
-                <span>Annual income (Rs.)</span>
+                <span>{getSiteText("eligibility.income", siteLanguage)}</span>
                 <input
                   type="number"
                   value={form.annual_income}
@@ -102,7 +112,7 @@ export default function EligibilityWizard({ schemes }: EligibilityWizardProps) {
           {step === 1 ? (
             <div className="grid gap-4 md:grid-cols-2">
               <label className="space-y-2 text-sm text-slate-300">
-                <span>Landholding (acres)</span>
+                <span>{getSiteText("eligibility.landholding", siteLanguage)}</span>
                 <input
                   type="number"
                   value={form.landholding_acres}
@@ -111,7 +121,7 @@ export default function EligibilityWizard({ schemes }: EligibilityWizardProps) {
                 />
               </label>
               <label className="space-y-2 text-sm text-slate-300">
-                <span>Occupation code</span>
+                <span>{getSiteText("eligibility.occupation", siteLanguage)}</span>
                 <input
                   type="text"
                   value={form.occupation_code}
@@ -120,14 +130,18 @@ export default function EligibilityWizard({ schemes }: EligibilityWizardProps) {
                 />
               </label>
               <ToggleRow
-                label="SECC-linked eligibility proof available"
+                label={getSiteText("eligibility.secc", siteLanguage)}
                 checked={form.has_secc_card}
                 onChange={(value) => updateForm("has_secc_card", value)}
+                yesLabel={yesLabel}
+                noLabel={noLabel}
               />
               <ToggleRow
-                label="Applicant is a street vendor"
+                label={getSiteText("eligibility.streetVendor", siteLanguage)}
                 checked={form.is_street_vendor}
                 onChange={(value) => updateForm("is_street_vendor", value)}
+                yesLabel={yesLabel}
+                noLabel={noLabel}
               />
             </div>
           ) : null}
@@ -135,14 +149,16 @@ export default function EligibilityWizard({ schemes }: EligibilityWizardProps) {
           {step === 2 ? (
             <div className="grid gap-4 md:grid-cols-2">
               <ToggleRow
-                label="Applicant owns a pucca house"
+                label={getSiteText("eligibility.house", siteLanguage)}
                 checked={form.owns_pucca_house}
                 onChange={(value) => updateForm("owns_pucca_house", value)}
+                yesLabel={yesLabel}
+                noLabel={noLabel}
               />
               <div className="rounded-[20px] border border-orange-300/20 bg-orange-300/5 p-4 text-sm text-orange-50">
-                <p className="font-semibold">Active scheme note</p>
+                <p className="font-semibold">{getSiteText("eligibility.note", siteLanguage)}</p>
                 <p className="mt-2 leading-6 text-orange-50/80">
-                  {selectedScheme?.benefit_summary ?? "Select a scheme to view the benefit summary."}
+                  {selectedScheme?.benefit_summary ?? getSiteText("eligibility.noteDefault", siteLanguage)}
                 </p>
               </div>
             </div>
@@ -154,7 +170,7 @@ export default function EligibilityWizard({ schemes }: EligibilityWizardProps) {
               onClick={() => setStep((current) => Math.max(0, current - 1))}
               className="rounded-full border border-white/10 px-5 py-3 text-sm text-slate-200 transition hover:bg-white/5"
             >
-              Back
+              {getSiteText("eligibility.back", siteLanguage)}
             </button>
             <button
               type="button"
@@ -167,7 +183,7 @@ export default function EligibilityWizard({ schemes }: EligibilityWizardProps) {
               }}
               className="inline-flex items-center gap-2 rounded-full border border-cyan-300/30 bg-cyan-300/10 px-5 py-3 text-sm font-semibold text-cyan-50 transition hover:bg-cyan-300/20"
             >
-              {step < stepTitles.length - 1 ? "Next step" : isLoading ? "Evaluating..." : "Run eligibility"}
+              {step < stepTitles.length - 1 ? getSiteText("eligibility.next", siteLanguage) : isLoading ? getSiteText("eligibility.evaluating", siteLanguage) : getSiteText("eligibility.evaluate", siteLanguage)}
               <ChevronRight className="h-4 w-4" />
             </button>
           </div>
@@ -175,14 +191,14 @@ export default function EligibilityWizard({ schemes }: EligibilityWizardProps) {
 
         <div className="rounded-[24px] border border-white/10 bg-slate-950/60 p-5">
           <div className="mb-4 flex items-center justify-between">
-            <h3 className="font-display text-2xl text-white">Decision Trace</h3>
+            <h3 className="font-display text-2xl text-white">{getSiteText("eligibility.trace", siteLanguage)}</h3>
             {result ? (
               <span
                 className={`rounded-full px-3 py-2 text-xs font-semibold uppercase tracking-[0.2em] ${
                   result.eligible ? "bg-emerald-400/15 text-emerald-100" : "bg-rose-400/15 text-rose-100"
                 }`}
               >
-                {result.eligible ? "Eligible" : "Needs attention"}
+                {result.eligible ? getSiteText("eligibility.eligible", siteLanguage) : getSiteText("eligibility.attention", siteLanguage)}
               </span>
             ) : null}
           </div>
@@ -190,12 +206,12 @@ export default function EligibilityWizard({ schemes }: EligibilityWizardProps) {
           {result ? (
             <div className="space-y-5">
               <p className="text-sm leading-6 text-slate-300">{result.benefit_summary}</p>
-              <RuleList title="Matched checks" icon={CheckCircle2} items={result.matched_rules} tone="success" />
-              <RuleList title="Failed checks" icon={XCircle} items={result.failed_rules} tone="danger" />
+              <RuleList title={getSiteText("eligibility.matched", siteLanguage)} icon={CheckCircle2} items={result.matched_rules} tone="success" />
+              <RuleList title={getSiteText("eligibility.failed", siteLanguage)} icon={XCircle} items={result.failed_rules} tone="danger" />
               <div className="rounded-[20px] border border-white/10 bg-white/5 p-4">
                 <p className="mb-3 flex items-center gap-2 text-sm font-semibold text-white">
                   <ShieldAlert className="h-4 w-4 text-orange-200" />
-                  Required documents
+                  {getSiteText("eligibility.requiredDocs", siteLanguage)}
                 </p>
                 <div className="flex flex-wrap gap-2">
                   {result.required_documents.map((document) => (
@@ -208,7 +224,7 @@ export default function EligibilityWizard({ schemes }: EligibilityWizardProps) {
             </div>
           ) : (
             <div className="rounded-[20px] border border-dashed border-white/10 bg-white/[0.03] p-5 text-sm leading-6 text-slate-400">
-              Complete the steps and run the check to see deterministic pass/fail reasoning.
+              {getSiteText("eligibility.emptyState", siteLanguage)}
             </div>
           )}
         </div>
@@ -221,10 +237,14 @@ function ToggleRow({
   label,
   checked,
   onChange,
+  yesLabel,
+  noLabel,
 }: {
   label: string;
   checked: boolean;
   onChange: (value: boolean) => void;
+  yesLabel: string;
+  noLabel: string;
 }) {
   return (
     <div className="flex items-center justify-between rounded-[20px] border border-white/10 bg-white/5 px-4 py-3">
@@ -236,7 +256,7 @@ function ToggleRow({
           checked ? "bg-emerald-400/20 text-emerald-100" : "bg-slate-800 text-slate-300"
         }`}
       >
-        {checked ? "Yes" : "No"}
+        {checked ? yesLabel : noLabel}
       </button>
     </div>
   );

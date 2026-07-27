@@ -2,6 +2,8 @@ import { BadgeCheck, DatabaseZap, FileDigit, ShieldCheck } from "lucide-react";
 import { useState } from "react";
 
 import SectionShell from "@/components/SectionShell";
+import { useAssistantStore } from "@/store/useAssistantStore";
+import { getSiteText } from "@/lib/i18n";
 import { fetchDigiLocker } from "@/utils/api";
 import type { DigiLockerDocument } from "@/types";
 
@@ -12,6 +14,7 @@ const documentOptions = [
 ] as const;
 
 export default function DigiLockerSandbox() {
+  const { siteLanguage } = useAssistantStore();
   const [selectedDocs, setSelectedDocs] = useState<Array<(typeof documentOptions)[number]["value"]>>([
     "income_certificate",
     "aadhaar_metadata",
@@ -42,9 +45,9 @@ export default function DigiLockerSandbox() {
 
   return (
     <SectionShell
-      eyebrow="DigiLocker Sandbox"
-      title="Verified records with instant form prefill"
-      description="A mock consent flow retrieves signed XML records, highlights verified issuers, and prepares the data needed for scheme applications."
+      eyebrow={getSiteText("digilocker.eyebrow", siteLanguage)}
+      title={getSiteText("digilocker.title", siteLanguage)}
+      description={getSiteText("digilocker.description", siteLanguage)}
     >
       <div className="grid gap-6 xl:grid-cols-[0.8fr,1.2fr]">
         <div className="rounded-[24px] border border-white/10 bg-slate-950/50 p-5">
@@ -72,25 +75,25 @@ export default function DigiLockerSandbox() {
             className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-full border border-cyan-300/30 bg-cyan-300/10 px-5 py-3 text-sm font-semibold text-cyan-50 transition hover:bg-cyan-300/20 disabled:opacity-50"
           >
             <DatabaseZap className="h-4 w-4" />
-            {isLoading ? "Fetching verified records..." : "Fetch with one-click consent"}
+            {isLoading ? getSiteText("digilocker.fetching", siteLanguage) : getSiteText("digilocker.fetch", siteLanguage)}
           </button>
 
           <div className="mt-5 rounded-[20px] border border-emerald-400/20 bg-emerald-400/5 p-4 text-sm leading-6 text-emerald-50">
             <p className="flex items-center gap-2 font-semibold">
               <ShieldCheck className="h-4 w-4" />
-              Consent token
+              {getSiteText("digilocker.consent", siteLanguage)}
             </p>
-            <p className="mt-2 text-emerald-50/80">Prototype uses a fixed consent token to simulate OAuth2 approval and protected record access.</p>
+            <p className="mt-2 text-emerald-50/80">{getSiteText("digilocker.consentText", siteLanguage)}</p>
           </div>
         </div>
 
         <div className="space-y-4">
           <div className="rounded-[24px] border border-white/10 bg-slate-950/60 p-5">
             <div className="mb-4 flex items-center justify-between">
-              <h3 className="font-display text-2xl text-white">Verified document cards</h3>
+              <h3 className="font-display text-2xl text-white">{getSiteText("digilocker.cardsTitle", siteLanguage)}</h3>
               {consentGranted ? (
                 <span className="rounded-full bg-emerald-400/15 px-3 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-emerald-100">
-                  Consent granted
+                  {getSiteText("digilocker.consentGranted", siteLanguage)}
                 </span>
               ) : null}
             </div>
@@ -115,7 +118,7 @@ export default function DigiLockerSandbox() {
               </div>
             ) : (
               <div className="rounded-[20px] border border-dashed border-white/10 bg-white/[0.03] p-5 text-sm text-slate-400">
-                Fetch records to view XML-backed document proofs and prefill data.
+                {getSiteText("digilocker.emptyState", siteLanguage)}
               </div>
             )}
           </div>
@@ -123,7 +126,7 @@ export default function DigiLockerSandbox() {
           <div className="rounded-[24px] border border-white/10 bg-white/5 p-5">
             <p className="mb-4 flex items-center gap-2 text-sm font-semibold text-white">
               <FileDigit className="h-4 w-4 text-orange-200" />
-              Scheme form prefill preview
+              {getSiteText("digilocker.prefillTitle", siteLanguage)}
             </p>
             <div className="grid gap-3 md:grid-cols-2">
               {documents.flatMap((document) =>
