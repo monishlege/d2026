@@ -1,5 +1,5 @@
 ## 1. Product Overview
-JanSahayak AI is a voice-first multilingual assistant that helps Indian citizens understand, verify, and apply for government welfare schemes through a guided, trustworthy digital experience.
+JanRakshak AI is a voice-first multilingual assistant that helps Indian citizens understand, verify, and apply for government welfare schemes through a guided, trustworthy digital experience.
 - The product reduces scheme confusion, language barriers, documentation friction, and phishing exposure for citizens who need faster access to public benefits.
 - It targets public service delivery modernization under the BHARAT PRAGATI track, with value in improved welfare reach, safer digital interactions, and higher self-service completion rates.
 
@@ -38,7 +38,7 @@ Citizens land on the assistant home and choose whether to ask a question by voic
 
 ```mermaid
 flowchart TD
-    A["Citizen opens JanSahayak AI"] --> B["Choose voice query, eligibility check, DigiLocker fetch, or URL scan"]
+    A["Citizen opens JanRakshak AI"] --> B["Choose voice query, eligibility check, DigiLocker fetch, or URL scan"]
     B --> C["Frontend collects input and sends request to FastAPI backend"]
     C --> D["Speech and intent service normalizes multilingual input"]
     C --> E["Eligibility engine evaluates scheme rules"]

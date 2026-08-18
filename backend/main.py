@@ -1,10 +1,15 @@
 import os
-from typing import Dict, List, Literal, Optional
+import logging
+from typing import Dict, List, Literal, Optional, Any
 from urllib.parse import urlparse
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
+
+from config import Config, log_configuration
+from bhashini_client import bhashini_client, BhashiniAPIError
+from rag_service import rag_client
 
 from mock_data import (
     DIGILOCKER_RECORDS,
@@ -16,12 +21,28 @@ from mock_data import (
     SCHEMES,
 )
 
+# Setup logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
-app = FastAPI(title="JanSahayak AI API", version="1.0.0")
+# Initialize API integrations
+Config.validate_required_keys()
+log_configuration()
 
+app = FastAPI(
+    title="JanRakshak AI API",
+    version="1.0.0",
+    description="Voice-first multilingual welfare assistant with Bhashini and Qdrant integration"
+)
+
+# Configure CORS
+cors_origins = [o for o in Config.CORS_ORIGINS if o]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -97,8 +118,8 @@ DEFAULT_AUTH_PASSWORD = "Win@2026SIH!"
 
 
 def get_expected_auth_credentials() -> tuple[str, str]:
-    username = os.getenv("JANSAHAYAK_USERNAME", DEFAULT_AUTH_USERNAME).strip()
-    password = os.getenv("JANSAHAYAK_PASSWORD", DEFAULT_AUTH_PASSWORD).strip()
+    username = os.getenv("JANRAKSHAK_USERNAME", "").strip() or DEFAULT_AUTH_USERNAME
+    password = os.getenv("JANRAKSHAK_PASSWORD", "").strip() or DEFAULT_AUTH_PASSWORD
     return username, password
 
 
@@ -119,6 +140,68 @@ class ChatResponse(BaseModel):
     answer: str
     confidence: Literal["high", "medium", "low"]
     references: List[str]
+
+
+class RAGQueryRequest(BaseModel):
+    """Request for semantic search over government schemes."""
+    query: str
+    language: Optional[str] = "en"
+    limit: int = Field(default=5, ge=1, le=20)
+
+
+class RAGDocument(BaseModel):
+    """Retrieved document from RAG."""
+    id: int
+    similarity_score: float
+    content: Dict[str, Any]
+
+
+class RAGQueryResponse(BaseModel):
+    """Response with RAG-retrieved documents."""
+    query: str
+    documents: List[RAGDocument]
+    total_found: int
+    search_provider: str  # "qdrant" or "mock"
+
+
+class TranslationRequest(BaseModel):
+    """Request for Bhashini translation service."""
+    text: str
+    source_language: str = Field(default="en", description="Source language code (en, hi, ta, te, kn, mr, bn)")
+    target_language: str = Field(default="hi", description="Target language code")
+
+
+class TranslationResponse(BaseModel):
+    """Response from translation service."""
+    original_text: str
+    translated_text: str
+    source_language: str
+    target_language: str
+    provider: str  # "bhashini" or "mock"
+
+
+class TTSRequest(BaseModel):
+    """Request for Text-to-Speech synthesis."""
+    text: str
+    language: str = Field(default="hi", description="Language code")
+    gender: Literal["male", "female"] = "female"
+
+
+class TTSResponse(BaseModel):
+    """Response with audio URL."""
+    text: str
+    language: str
+    audio_url: str
+    provider: str  # "bhashini" or "mock"
+
+
+class ConfigStatusResponse(BaseModel):
+    """System configuration status."""
+    environment: str
+    debug: bool
+    bhashini_configured: bool
+    qdrant_configured: bool
+    cors_origins: List[str]
 
 
 def detect_intent(text: str) -> str:
@@ -345,7 +428,7 @@ def check_eligibility(payload: EligibilityRequest) -> EligibilityResponse:
 
 @app.post("/api/digilocker/fetch", response_model=DigiLockerResponse)
 def fetch_digilocker(payload: DigiLockerRequest) -> DigiLockerResponse:
-    consent_granted = payload.consent_token.strip().lower() == "jansahayak-consent-ok"
+    consent_granted = payload.consent_token.strip().lower() == "janrakshak-consent-ok"
     documents = []
 
     if consent_granted:
@@ -372,3 +455,156 @@ def security_scan(payload: SecurityScanRequest) -> SecurityScanResponse:
 @app.post("/api/chat", response_model=ChatResponse)
 def chat(payload: ChatRequest) -> ChatResponse:
     return retrieve_knowledge(payload.query)
+
+
+# ============================================
+# BHASHINI API Endpoints
+# ============================================
+
+@app.post("/api/translate", response_model=TranslationResponse)
+def translate_text(request: TranslationRequest) -> TranslationResponse:
+    """
+    Translate text using Bhashini AI4Bharat service.
+    
+    Falls back to identity translation if Bhashini is not configured.
+    """
+    try:
+        result = bhashini_client.translate_text(
+            text=request.text,
+            source_lang=request.source_language,
+            target_lang=request.target_language
+        )
+        
+        return TranslationResponse(
+            original_text=request.text,
+            translated_text=result.get("translated_text", request.text),
+            source_language=request.source_language,
+            target_language=request.target_language,
+            provider=result.get("provider", "mock")
+        )
+    
+    except BhashiniAPIError as e:
+        logger.error(f"Translation error: {str(e)}")
+        raise HTTPException(
+            status_code=503,
+            detail="Translation service temporarily unavailable. Please try again later."
+        )
+    except Exception as e:
+        logger.error(f"Unexpected translation error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@app.post("/api/tts", response_model=TTSResponse)
+def text_to_speech(request: TTSRequest) -> TTSResponse:
+    """
+    Convert text to speech using Bhashini TTS service.
+    
+    Falls back to mock audio URL if Bhashini is not configured.
+    """
+    try:
+        result = bhashini_client.text_to_speech(
+            text=request.text,
+            language=request.language,
+            gender=request.gender
+        )
+        
+        return TTSResponse(
+            text=request.text,
+            language=request.language,
+            audio_url=result.get("audio_url", ""),
+            provider=result.get("provider", "mock")
+        )
+    
+    except BhashiniAPIError as e:
+        logger.error(f"TTS error: {str(e)}")
+        raise HTTPException(
+            status_code=503,
+            detail="Text-to-Speech service temporarily unavailable."
+        )
+    except Exception as e:
+        logger.error(f"Unexpected TTS error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+# ============================================
+# QDRANT RAG Endpoints
+# ============================================
+
+@app.post("/api/rag/search", response_model=RAGQueryResponse)
+def rag_search(request: RAGQueryRequest) -> RAGQueryResponse:
+    """
+    Semantic search over government scheme documents using Qdrant.
+    
+    Uses vector similarity to find relevant eligibility rules and scheme info.
+    Falls back to mock results if Qdrant is not configured.
+    """
+    try:
+        documents = rag_client.search_by_text(
+            query_text=request.query,
+            limit=request.limit
+        )
+        
+        rag_documents = [
+            RAGDocument(
+                id=doc["id"],
+                similarity_score=doc["score"],
+                content=doc.get("payload", {})
+            )
+            for doc in documents
+        ]
+        
+        provider = "qdrant" if rag_client.is_configured else "mock"
+        
+        return RAGQueryResponse(
+            query=request.query,
+            documents=rag_documents,
+            total_found=len(rag_documents),
+            search_provider=provider
+        )
+    
+    except Exception as e:
+        logger.error(f"RAG search error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Search failed")
+
+
+@app.get("/api/rag/stats")
+def rag_stats() -> Dict[str, Any]:
+    """Get Qdrant collection statistics."""
+    return rag_client.get_collection_stats()
+
+
+# ============================================
+# System Status Endpoints
+# ============================================
+
+@app.get("/api/config/status", response_model=ConfigStatusResponse)
+def config_status() -> ConfigStatusResponse:
+    """Get system configuration status (without exposing keys)."""
+    return ConfigStatusResponse(**Config.get_config_summary())
+
+
+@app.get("/api/health/detailed")
+def health_detailed() -> Dict[str, Any]:
+    """
+    Detailed health check including API integrations.
+    """
+    return {
+        "status": "ok",
+        "environment": Config.ENVIRONMENT,
+        "bhashini": {
+            "configured": bhashini_client.is_configured,
+            "provider": "bhashini" if bhashini_client.is_configured else "mock"
+        },
+        "qdrant": {
+            "configured": rag_client.is_configured,
+            "collection": rag_client.collection_name,
+            "provider": "qdrant" if rag_client.is_configured else "mock"
+        },
+        "services": {
+            "speech_recognition": "enabled",
+            "translation": "enabled",
+            "tts": "enabled",
+            "rag": "enabled"
+        }
+    }
+

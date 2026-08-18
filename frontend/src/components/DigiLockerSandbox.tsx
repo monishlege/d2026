@@ -27,7 +27,7 @@ export default function DigiLockerSandbox() {
     setIsLoading(true);
     try {
       const response = await fetchDigiLocker({
-        consent_token: "jansahayak-consent-ok",
+        consent_token: "janrakshak-consent-ok",
         requested_documents: selectedDocs,
       });
       setDocuments(response.documents);

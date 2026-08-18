@@ -1,6 +1,9 @@
 fastapi
 uvicorn
 pydantic
+python-dotenv
 python-multipart
 requests
 jinja2
+qdrant-client>=1.9.0
+httpx

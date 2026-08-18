@@ -6,7 +6,7 @@ const translations: Record<SiteLanguage, Record<string, string>> = {
   en: {
     "home.trackLabel": "BHARAT PRAGATI Track",
     "home.eyebrow": "Voice-first welfare assistance",
-    "home.heroTitle": "JanSahayak AI",
+    "home.heroTitle": "JanRakshak AI",
     "home.heroDescription": "A multilingual digital assistant for government welfare guidance, secure document retrieval, and phishing-aware service discovery.",
     "home.feature1.label": "Mock Bhashini intake",
     "home.feature1.detail": "Hindi to Bengali speech normalization",

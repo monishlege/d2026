@@ -23,7 +23,7 @@ describe("Home", () => {
   it("renders the main hero and loads schemes", async () => {
     render(<Home />);
 
-    expect(screen.getByText(/JanSahayak AI/i)).toBeInTheDocument();
+    expect(screen.getByText(/JanRakshak AI/i)).toBeInTheDocument();
 
     await waitFor(() => {
       expect(screen.getByText(/PM-KISAN/i)).toBeInTheDocument();

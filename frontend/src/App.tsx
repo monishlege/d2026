@@ -1,46 +1,74 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { User } from "firebase/auth";
 import { BrowserRouter as Router, Route, Routes } from "react-router-dom";
 
 import SecureLogin from "@/components/SecureLogin";
 import Home from "@/pages/Home";
-import { login } from "@/utils/api";
-
-const AUTH_TOKEN_KEY = "jansahayak-auth-token";
+import { subscribeToAuthState, signOutUser } from "@/lib/firebaseAuth";
+import { initializeRecaptcha } from "@/lib/firebase";
 
 export default function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(() => Boolean(localStorage.getItem(AUTH_TOKEN_KEY)));
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [authError, setAuthError] = useState("");
 
-  async function handleLogin(username: string, password: string) {
-    const response = await login({ username, password });
-    localStorage.setItem(AUTH_TOKEN_KEY, response.token);
-    setAuthError("");
-    setIsAuthenticated(true);
+  // Initialize Firebase and RecaptchaVerifier on mount
+  useEffect(() => {
+    initializeRecaptcha();
+  }, []);
+
+  // Subscribe to auth state changes
+  useEffect(() => {
+    const unsubscribe = subscribeToAuthState((user) => {
+      setCurrentUser(user);
+      setIsLoading(false);
+    });
+
+    // Clean up subscription
+    return () => unsubscribe();
+  }, []);
+
+  async function handleLogout() {
+    try {
+      setAuthError("");
+      await signOutUser();
+    } catch (error) {
+      console.error("Logout error:", error);
+    }
   }
 
-  function handleLogout() {
-    localStorage.removeItem(AUTH_TOKEN_KEY);
-    setIsAuthenticated(false);
+  if (isLoading) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-slate-900">
+        <div className="text-center text-white">
+          <div className="mb-4 text-lg">Loading...</div>
+          <div className="h-2 w-32 animate-pulse bg-slate-700"></div>
+        </div>
+      </div>
+    );
   }
 
   return (
-    <Router>
-      <Routes>
-        <Route
-          path="/"
-          element={
-            isAuthenticated ? (
-              <Home onLogout={handleLogout} />
-            ) : (
-              <SecureLogin onLogin={handleLogin} authError={authError} />
-            )
-          }
-        />
-        <Route
-          path="*"
-          element={<div className="p-10 text-center text-sm text-slate-300">Route not found.</div>}
-        />
-      </Routes>
-    </Router>
+    <>
+      <div id="recaptcha-container"></div>
+      <Router>
+        <Routes>
+          <Route
+            path="/"
+            element={
+              currentUser ? (
+                <Home onLogout={handleLogout} user={currentUser} />
+              ) : (
+                <SecureLogin authError={authError} />
+              )
+            }
+          />
+          <Route
+            path="*"
+            element={<div className="p-10 text-center text-sm text-slate-300">Route not found.</div>}
+          />
+        </Routes>
+      </Router>
+    </>
   );
 }

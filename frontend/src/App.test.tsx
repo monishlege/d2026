@@ -61,7 +61,7 @@ describe("App security gate", () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByText(/JanSahayak AI/i)).toBeInTheDocument();
+      expect(screen.getByText(/JanRakshak AI/i)).toBeInTheDocument();
     });
   });
 });

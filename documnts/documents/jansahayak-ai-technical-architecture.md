@@ -1,5 +1,5 @@
 ## 1. Architecture Design
-JanSahayak AI uses a monorepo with a React frontend and a FastAPI backend. The frontend provides the voice-first assistant experience, while the backend handles deterministic scheme evaluation, mock speech normalization, mock DigiLocker integration, phishing heuristics, and confidence-scored knowledge responses.
+JanRakshak AI uses a monorepo with a React frontend and a FastAPI backend. The frontend provides the voice-first assistant experience, while the backend handles deterministic scheme evaluation, mock speech normalization, mock DigiLocker integration, phishing heuristics, and confidence-scored knowledge responses.
 
 ```mermaid
 flowchart LR

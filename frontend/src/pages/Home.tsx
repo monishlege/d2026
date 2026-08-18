@@ -1,4 +1,5 @@
 import { ArrowRight, AudioLines, Languages, LogOut, ShieldCheck } from "lucide-react";
+import { User } from "firebase/auth";
 import { useEffect, useState } from "react";
 
 import AntiPhishingScanner from "@/components/AntiPhishingScanner";
@@ -14,9 +15,10 @@ import type { SchemeSummary } from "@/types";
 
 interface HomeProps {
   onLogout?: () => void;
+  user?: User;
 }
 
-export default function Home({ onLogout }: HomeProps) {
+export default function Home({ onLogout, user }: HomeProps) {
   const [schemes, setSchemes] = useState<SchemeSummary[]>([]);
   const [loadingSchemes, setLoadingSchemes] = useState(true);
   const {
@@ -72,7 +74,13 @@ export default function Home({ onLogout }: HomeProps) {
   return (
     <main className="mx-auto flex min-h-screen max-w-[1440px] flex-col gap-8 px-4 py-6 md:px-8 md:py-8">
       {onLogout ? (
-        <div className="flex justify-end">
+        <div className="flex items-center justify-between">
+          {user && (
+            <div className="text-sm text-slate-300">
+              <p className="mb-1 text-xs uppercase tracking-widest text-slate-400">Signed in as</p>
+              <p className="font-medium text-white">{user.displayName || user.email}</p>
+            </div>
+          )}
           <button
             type="button"
             onClick={onLogout}
