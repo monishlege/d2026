@@ -11,10 +11,11 @@ import type {
 
 const localHosts = new Set(["localhost", "127.0.0.1"]);
 const configuredApiBase = import.meta.env.VITE_API_URL?.replace(/\/$/, "");
+const productionApiBase = configuredApiBase || "https://decodesih2026.onrender.com";
 
 const API_BASE = localHosts.has(window.location.hostname)
   ? "http://localhost:8000/api"
-  : `${configuredApiBase || window.location.origin}/api`;
+  : `${productionApiBase}/api`;
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {
