@@ -4,7 +4,6 @@ import { useMemo, useState } from "react";
 import SectionShell from "@/components/SectionShell";
 import { useAssistantStore } from "@/store/useAssistantStore";
 import { getSiteText } from "@/lib/i18n";
-import { checkEligibility } from "@/utils/api";
 import type { EligibilityRequest, EligibilityResponse, SchemeSummary } from "@/types";
 
 const initialForm: EligibilityRequest = {
@@ -18,6 +17,43 @@ const initialForm: EligibilityRequest = {
 };
 
 const stepTitles = ["Profile", "Scheme Fit", "Housing and Occupation"];
+
+const PROTOTYPE_RULES: Record<string, {
+  maxIncome?: number;
+  maxLandholding?: number;
+  requiresFarmer?: boolean;
+  requiresSecc?: boolean;
+  requiresNoHouse?: boolean;
+  occupations?: string[];
+  requiresVendor?: boolean;
+  documents: string[];
+}> = {
+  "PM-KISAN": {
+    maxIncome: 200000,
+    maxLandholding: 5,
+    requiresFarmer: true,
+    documents: ["Aadhaar Card", "Income Certificate", "Land Record", "Bank Account Passbook"],
+  },
+  "Ayushman Bharat": {
+    maxIncome: 250000,
+    requiresSecc: true,
+    documents: ["Aadhaar Card", "Ration Card", "SECC Verification", "Income Certificate"],
+  },
+  "e-SHRAM": {
+    occupations: ["UNORG", "LABOUR", "MIGRANT", "GIG"],
+    documents: ["Aadhaar Card", "Mobile Number", "Bank Account Details", "Occupation Proof"],
+  },
+  "PM Awas Yojana": {
+    requiresNoHouse: true,
+    requiresSecc: true,
+    documents: ["Aadhaar Card", "Income Certificate", "Residence Proof", "Housing Status Declaration"],
+  },
+  "PM Swanidhi": {
+    occupations: ["VENDOR", "HAWKER", "STALL"],
+    requiresVendor: true,
+    documents: ["Aadhaar Card", "Vendor ID or Letter of Recommendation", "Bank Account Details", "Mobile Number"],
+  },
+};
 
 interface EligibilityWizardProps {
   schemes: SchemeSummary[];
@@ -44,12 +80,65 @@ export default function EligibilityWizard({ schemes }: EligibilityWizardProps) {
 
   async function evaluate() {
     setIsLoading(true);
-    try {
-      const response = await checkEligibility(form);
-      setResult(response);
-    } finally {
-      setIsLoading(false);
+    const scheme = schemes.find((item) => item.name === form.scheme_name);
+    const rules = PROTOTYPE_RULES[form.scheme_name];
+    const matchedRules: string[] = [];
+    const failedRules: string[] = [];
+
+    if (rules?.maxIncome !== undefined) {
+      (form.annual_income < rules.maxIncome ? matchedRules : failedRules).push(
+        form.annual_income < rules.maxIncome
+          ? `Annual income is below Rs. ${rules.maxIncome.toLocaleString("en-IN")}.`
+          : `Annual income must be below Rs. ${rules.maxIncome.toLocaleString("en-IN")}.`,
+      );
     }
+    if (rules?.maxLandholding !== undefined) {
+      (form.landholding_acres <= rules.maxLandholding ? matchedRules : failedRules).push(
+        form.landholding_acres <= rules.maxLandholding
+          ? `Landholding is within ${rules.maxLandholding} acres.`
+          : `Landholding must not exceed ${rules.maxLandholding} acres.`,
+      );
+    }
+    if (rules?.requiresFarmer) {
+      (form.landholding_acres > 0 ? matchedRules : failedRules).push(
+        form.landholding_acres > 0 ? "Applicant indicates active landholding for farming." : "Applicant must have farming landholding.",
+      );
+    }
+    if (rules?.requiresSecc) {
+      (form.has_secc_card ? matchedRules : failedRules).push(
+        form.has_secc_card ? "SECC-linked eligibility proof is available." : "SECC-linked eligibility proof is required.",
+      );
+    }
+    if (rules?.requiresNoHouse) {
+      (!form.owns_pucca_house ? matchedRules : failedRules).push(
+        !form.owns_pucca_house ? "Applicant does not own a pucca house." : "Applicant must not own a pucca house.",
+      );
+    }
+    if (rules?.occupations) {
+      const matchesOccupation = rules.occupations.includes(form.occupation_code.toUpperCase());
+      (matchesOccupation ? matchedRules : failedRules).push(
+        matchesOccupation
+          ? "Occupation code matches scheme criteria."
+          : `Occupation code must be one of: ${rules.occupations.join(", ")}.`,
+      );
+    }
+    if (rules?.requiresVendor) {
+      (form.is_street_vendor ? matchedRules : failedRules).push(
+        form.is_street_vendor ? "Applicant is identified as a street vendor." : "Applicant must be a street vendor.",
+      );
+    }
+
+    setResult({
+      scheme_name: form.scheme_name,
+      eligible: failedRules.length === 0,
+      matched_rules: matchedRules,
+      failed_rules: failedRules,
+      required_documents: rules?.documents ?? [],
+      benefit_summary: scheme?.benefit_summary ?? "Prototype scheme details unavailable.",
+    });
+    window.setTimeout(() => {
+      setIsLoading(false);
+    }, 350);
   }
 
   function updateForm<Key extends keyof EligibilityRequest>(key: Key, value: EligibilityRequest[Key]) {

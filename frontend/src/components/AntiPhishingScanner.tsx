@@ -4,7 +4,6 @@ import { useState } from "react";
 import SectionShell from "@/components/SectionShell";
 import { useAssistantStore } from "@/store/useAssistantStore";
 import { getSiteText } from "@/lib/i18n";
-import { scanUrl } from "@/utils/api";
 import type { SecurityScanResponse } from "@/types";
 
 const sampleLinks = [
@@ -19,14 +18,65 @@ export default function AntiPhishingScanner() {
   const [result, setResult] = useState<SecurityScanResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  async function analyzeUrl() {
+  function analyzeUrl() {
     setIsLoading(true);
+    const normalizedUrl = url.includes("://") ? url : `https://${url}`;
+    let parsedUrl: URL | null = null;
     try {
-      const response = await scanUrl(url);
-      setResult(response);
-    } finally {
+      parsedUrl = new URL(normalizedUrl);
+    } catch {
+      setResult({
+        url,
+        safe: false,
+        score: 0,
+        indicators: ["This is not a valid website URL."],
+        official_portal_match: false,
+      });
       setIsLoading(false);
+      return;
     }
+
+    const hostname = parsedUrl.hostname.toLowerCase();
+    const loweredUrl = normalizedUrl.toLowerCase();
+    const indicators: string[] = [];
+    let score = 100;
+
+    if (parsedUrl.protocol !== "https:") {
+      indicators.push("Missing SSL/HTTPS protection.");
+      score -= 35;
+    }
+    if ((hostname.endsWith(".gov.org") || hostname.endsWith(".in.net") || hostname.includes(".gov.")) && !hostname.endsWith(".gov.in")) {
+      indicators.push("Suspicious government-like domain extension detected.");
+      score -= 25;
+    }
+    if (["guaranteed", "claim-now", "urgent", "free-money", "verify-account"].some((keyword) => loweredUrl.includes(keyword))) {
+      indicators.push("Fraud-associated promotional keyword detected in the URL.");
+      score -= 20;
+    }
+    if (hostname.split(".").length > 4 || (hostname.match(/-/g) ?? []).length >= 3) {
+      indicators.push("Domain structure appears unusually noisy or spoof-like.");
+      score -= 10;
+    }
+
+    const officialPortals = ["pmkisan.gov.in", "beneficiary.nha.gov.in", "digilocker.gov.in", "eshram.gov.in", "pmjay.gov.in"];
+    const officialMatch = officialPortals.some((portal) => hostname === portal || hostname.endsWith(`.${portal}`));
+    if (officialMatch) {
+      indicators.push("Matches a known official government portal pattern.");
+      score = Math.min(100, score + 10);
+    }
+    if (indicators.length === 0) indicators.push("No immediate phishing heuristics were triggered.");
+
+    const response: SecurityScanResponse = {
+      url,
+      safe: score >= 70 && officialMatch,
+      score: Math.max(0, Math.min(score, 100)),
+      indicators,
+      official_portal_match: officialMatch,
+    };
+    window.setTimeout(() => {
+      setResult(response);
+      setIsLoading(false);
+    }, 350);
   }
 
   return (
@@ -63,7 +113,7 @@ export default function AntiPhishingScanner() {
 
           <button
             type="button"
-            onClick={() => void analyzeUrl()}
+            onClick={analyzeUrl}
             disabled={!url || isLoading}
             className="mt-5 inline-flex items-center gap-2 rounded-full border border-orange-300/30 bg-orange-300/10 px-5 py-3 text-sm font-semibold text-orange-50 transition hover:bg-orange-300/20 disabled:opacity-60"
           >

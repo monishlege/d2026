@@ -4,7 +4,6 @@ import { useState } from "react";
 import SectionShell from "@/components/SectionShell";
 import { useAssistantStore } from "@/store/useAssistantStore";
 import { getSiteText } from "@/lib/i18n";
-import { fetchDigiLocker } from "@/utils/api";
 import type { DigiLockerDocument } from "@/types";
 
 const documentOptions = [
@@ -12,6 +11,35 @@ const documentOptions = [
   { label: "Caste Certificate", value: "caste_certificate" },
   { label: "Aadhaar Metadata", value: "aadhaar_metadata" },
 ] as const;
+
+type DocumentType = (typeof documentOptions)[number]["value"];
+
+const MOCK_DOCUMENTS: Record<DocumentType, DigiLockerDocument> = {
+  income_certificate: {
+    type: "income_certificate",
+    issuer: "State Revenue Department",
+    verified: true,
+    xml_record:
+      "<IncomeCertificate><Name>Ravi Kumar</Name><AnnualIncome>185000</AnnualIncome><Verified>true</Verified></IncomeCertificate>",
+    extracted_fields: { name: "Ravi Kumar", annual_income: "Rs. 1,85,000", verified: "true" },
+  },
+  caste_certificate: {
+    type: "caste_certificate",
+    issuer: "District Magistrate Office",
+    verified: true,
+    xml_record:
+      "<CasteCertificate><Name>Ravi Kumar</Name><Category>OBC</Category><Verified>true</Verified></CasteCertificate>",
+    extracted_fields: { name: "Ravi Kumar", category: "OBC", verified: "true" },
+  },
+  aadhaar_metadata: {
+    type: "aadhaar_metadata",
+    issuer: "UIDAI",
+    verified: true,
+    xml_record:
+      "<AadhaarMetadata><Name>Ravi Kumar</Name><MaskedNumber>XXXX-XXXX-1947</MaskedNumber><Verified>true</Verified></AadhaarMetadata>",
+    extracted_fields: { name: "Ravi Kumar", masked_number: "XXXX-XXXX-1947", verified: "true" },
+  },
+};
 
 export default function DigiLockerSandbox() {
   const { siteLanguage } = useAssistantStore();
@@ -22,19 +50,16 @@ export default function DigiLockerSandbox() {
   const [documents, setDocuments] = useState<DigiLockerDocument[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [consentGranted, setConsentGranted] = useState(false);
+  const [isMockData, setIsMockData] = useState(false);
 
-  async function retrieveDocuments() {
+  function retrieveDocuments() {
     setIsLoading(true);
-    try {
-      const response = await fetchDigiLocker({
-        consent_token: "janrakshak-consent-ok",
-        requested_documents: selectedDocs,
-      });
-      setDocuments(response.documents);
-      setConsentGranted(response.consent_granted);
-    } finally {
+    window.setTimeout(() => {
+      setDocuments(selectedDocs.map((documentType) => MOCK_DOCUMENTS[documentType]));
+      setConsentGranted(true);
+      setIsMockData(true);
       setIsLoading(false);
-    }
+    }, 450);
   }
 
   function toggleDocument(value: (typeof documentOptions)[number]["value"]) {
@@ -70,7 +95,7 @@ export default function DigiLockerSandbox() {
 
           <button
             type="button"
-            onClick={() => void retrieveDocuments()}
+            onClick={retrieveDocuments}
             disabled={selectedDocs.length === 0 || isLoading}
             className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-full border border-cyan-300/30 bg-cyan-300/10 px-5 py-3 text-sm font-semibold text-cyan-50 transition hover:bg-cyan-300/20 disabled:opacity-50"
           >
@@ -92,9 +117,16 @@ export default function DigiLockerSandbox() {
             <div className="mb-4 flex items-center justify-between">
               <h3 className="font-display text-2xl text-white">{getSiteText("digilocker.cardsTitle", siteLanguage)}</h3>
               {consentGranted ? (
-                <span className="rounded-full bg-emerald-400/15 px-3 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-emerald-100">
-                  {getSiteText("digilocker.consentGranted", siteLanguage)}
-                </span>
+                <div className="flex items-center gap-2">
+                  {isMockData ? (
+                    <span className="rounded-full border border-orange-300/20 bg-orange-300/10 px-3 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-orange-100">
+                      Demo data
+                    </span>
+                  ) : null}
+                  <span className="rounded-full bg-emerald-400/15 px-3 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-emerald-100">
+                    {getSiteText("digilocker.consentGranted", siteLanguage)}
+                  </span>
+                </div>
               ) : null}
             </div>
 

@@ -42,7 +42,11 @@ export const useAssistantStore = create<AssistantState>((set) => ({
   chatResult: null,
   isProcessingVoice: false,
   quickPrompts: defaultQuickPrompts,
-  setLanguage: (language) => set({ selectedLanguage: language }),
+  setLanguage: (language) =>
+    set({
+      selectedLanguage: language,
+      siteLanguage: language === "hi" || language === "kn" ? language : "en",
+    }),
   setSiteLanguage: (language) => set({ siteLanguage: language }),
   setTranscript: (value) => set({ transcript: value }),
   startVoiceProcessing: () => set({ isProcessingVoice: true }),

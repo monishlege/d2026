@@ -53,6 +53,14 @@ class JanRakshakBackendTests(unittest.TestCase):
 
         self.assertIn(response.confidence, {"high", "medium", "low"})
         self.assertGreater(len(response.references), 0)
+        self.assertEqual(len(response.guidance_steps), 3)
+        self.assertIn("beneficiary.nha.gov.in", response.security_check)
+
+    def test_chat_creates_grievance_tracking_id(self) -> None:
+        response = chat(ChatRequest(query="My PM-KISAN payment is delayed"))
+
+        self.assertRegex(response.grievance_tracking_id or "", r"^GRV-[0-9A-F]{6}$")
+        self.assertIn("7 to 30 days", response.answer)
 
     def test_auth_accepts_credentials_from_environment(self) -> None:
         original_username = os.environ.get("JANRAKSHAK_USERNAME")

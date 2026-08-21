@@ -140,6 +140,11 @@ class ChatResponse(BaseModel):
     answer: str
     confidence: Literal["high", "medium", "low"]
     references: List[str]
+    voice_summary: str = ""
+    guidance_steps: List[str] = []
+    security_check: str = ""
+    offline_alert: str = ""
+    grievance_tracking_id: Optional[str] = None
 
 
 class RAGQueryRequest(BaseModel):
@@ -355,6 +360,27 @@ def score_url(url: str) -> SecurityScanResponse:
 
 def retrieve_knowledge(query: str) -> ChatResponse:
     lowered = query.lower()
+    if any(term in lowered for term in ("grievance", "missing benefit", "payment delayed", "delay", "not received")):
+        tracking_id = "GRV-" + os.urandom(3).hex().upper()
+        answer = (
+            "Please register a grievance with the scheme's official department or visit a CSC. "
+            f"Your draft tracking ID is {tracking_id}. Expected first response: 7 to 30 days."
+        )
+        return ChatResponse(
+            answer=answer,
+            confidence="medium",
+            references=["Citizen grievance guidance"],
+            voice_summary="I can help you report a missing benefit or delay. Register a grievance and keep the tracking ID for follow-up.",
+            guidance_steps=[
+                "Step 1: Note the scheme name, application number, payment date, and the missing benefit.",
+                "Step 2: Keep Aadhaar, bank details, acknowledgement, and relevant certificates ready.",
+                "Step 3: Submit the grievance on the official scheme portal or at your nearest CSC or E-Seva Kendra.",
+            ],
+            security_check="Use only the verified .gov.in or .nic.in portal shown by the official department. Check HTTPS and the exact domain before submitting details.",
+            offline_alert="Would you like an SMS or WhatsApp status alert for this grievance?",
+            grievance_tracking_id=tracking_id,
+        )
+
     ranked = []
     for item in KNOWLEDGE_BASE:
         score = 0
@@ -381,10 +407,40 @@ def retrieve_knowledge(query: str) -> ChatResponse:
         else "I could not strongly ground this answer in the scheme knowledge base. Please verify with an official portal or a human support officer."
     )
 
+    scheme = SCHEMES.get(best_item["scheme"])
+    official_domain = None
+    if best_item["scheme"] == "Ayushman Bharat":
+        official_domain = "beneficiary.nha.gov.in"
+    elif best_item["scheme"] == "PM Awas Yojana":
+        official_domain = "pmaymis.gov.in"
+    elif best_item["scheme"] == "PM Swanidhi":
+        official_domain = "pmsvanidhi.mohua.gov.in"
+    elif best_item["scheme"] == "e-SHRAM":
+        official_domain = "eshram.gov.in"
+    elif best_item["scheme"] == "PM-KISAN":
+        official_domain = "pmkisan.gov.in"
+
+    required_documents = ", ".join(scheme["required_documents"]) if scheme else "Aadhaar, income or caste certificate, and relevant land or residence records"
     return ChatResponse(
         answer=answer,
         confidence=confidence,
         references=[best_item["title"]] if best_score > 0 else ["Official government portal verification recommended"],
+        voice_summary=(
+            f"{best_item['scheme']} may help with {scheme['benefit_summary'].lower()}"
+            if scheme
+            else answer
+        ),
+        guidance_steps=[
+            "Step 1: Eligibility Check: compare your income, occupation, land, housing, or SECC details with the scheme criteria.",
+            f"Step 2: Verified Documents Needed: {required_documents}.",
+            f"Step 3: How to Apply: use https://{official_domain} or visit your nearest CSC or E-Seva Kendra." if official_domain else "Step 3: How to Apply: visit your nearest CSC or E-Seva Kendra and ask for the official scheme desk.",
+        ],
+        security_check=(
+            f"Official domain pattern matched: {official_domain}. Use HTTPS and confirm the exact .gov.in or .nic.in domain before sharing details."
+            if official_domain
+            else "No official portal was matched locally. Do not open an unverified link; confirm it with a CSC or government office."
+        ),
+        offline_alert="Would you like an SMS or WhatsApp status alert for application updates?",
     )
 
 

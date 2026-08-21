@@ -5,6 +5,7 @@ export type IntentType =
   | "eligibility_check"
   | "document_fetch"
   | "security_scan"
+  | "grievance"
   | "general_query";
 
 export type ConfidenceLevel = "high" | "medium" | "low";
@@ -13,6 +14,16 @@ export interface SchemeSummary {
   name: string;
   description: string;
   benefit_summary: string;
+}
+
+export type SchemeScope = "national" | "state" | "district";
+
+export interface LocatedScheme extends SchemeSummary {
+  scope: SchemeScope;
+  state: string | null;
+  districts: string[] | null;
+  tags: string[];
+  applyUrl?: string;
 }
 
 export interface SpeechToTextResponse {
@@ -26,6 +37,11 @@ export interface ChatResponse {
   answer: string;
   confidence: ConfidenceLevel;
   references: string[];
+  voice_summary?: string;
+  guidance_steps?: string[];
+  security_check?: string;
+  offline_alert?: string;
+  grievance_tracking_id?: string | null;
 }
 
 export interface EligibilityRequest {

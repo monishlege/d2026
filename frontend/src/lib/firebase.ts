@@ -8,20 +8,28 @@ import {
   RecaptchaVerifier,
 } from "firebase/auth";
 import { getFirestore, Firestore } from "firebase/firestore";
+import { getAnalytics, isSupported } from "firebase/analytics";
 
-// Firebase configuration
-// Replace these values with your actual Firebase project configuration
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyDemoKeyForJanRakshak",
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "janrakshak-demo.firebaseapp.com",
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "janrakshak-demo",
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "janrakshak-demo.appspot.com",
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "123456789",
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:123456789:web:abcdef123456",
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyDQLjICU0eq3Bl2foHV-yk65hYn6Ju1jgc",
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "decodesih26.firebaseapp.com",
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "decodesih26",
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "decodesih26.firebasestorage.app",
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "341205801623",
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:341205801623:web:eafcceefb00676bf2a67d2",
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || "G-9277BGKHV9",
 };
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
+
+if (typeof window !== "undefined") {
+  isSupported()
+    .then((supported) => {
+      if (supported) getAnalytics(app);
+    })
+    .catch(() => undefined);
+}
 
 // Initialize Firebase Authentication and set up persistence
 export const auth: Auth = getAuth(app);
@@ -49,9 +57,7 @@ export function initializeRecaptcha(): void {
     if (!window.recaptchaVerifier) {
       window.recaptchaVerifier = new RecaptchaVerifier(auth, "recaptcha-container", {
         size: "invisible",
-        callback: (token: string) => {
-          console.log("reCAPTCHA token generated:", token);
-        },
+        callback: () => undefined,
         "expired-callback": () => {
           console.warn("reCAPTCHA token expired");
           window.recaptchaVerifier = null;
