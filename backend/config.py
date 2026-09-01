@@ -30,6 +30,11 @@ class Config:
     BHASHINI_ULCA_API_KEY: Optional[str] = os.getenv("BHASHINI_ULCA_API_KEY")
 
     # ============================================
+    # GOOGLE GEMINI API Configuration
+    # ============================================
+    GEMINI_API_KEY: Optional[str] = os.getenv("GEMINI_API_KEY")
+
+    # ============================================
     # QDRANT VECTOR DATABASE Configuration
     # ============================================
     QDRANT_URL: Optional[str] = os.getenv("QDRANT_URL")
@@ -52,6 +57,7 @@ class Config:
     DEBUG: bool = os.getenv("DEBUG", "true").lower() == "true"
     CORS_ORIGINS: list = [
         "http://localhost:5173",
+        "http://127.0.0.1:5173",
         "http://localhost:3000",
         os.getenv("FRONTEND_URL", "").strip(),
     ]
@@ -63,6 +69,13 @@ class Config:
         Returns True if all keys are present, False otherwise.
         """
         missing_keys = []
+
+        if not cls.GEMINI_API_KEY:
+            missing_keys.append("GEMINI_API_KEY")
+            logger.warning(
+                "⚠️ GEMINI_API_KEY not configured. "
+                "Gemini voice analysis features will be unavailable."
+            )
 
         if not cls.BHASHINI_API_KEY:
             missing_keys.append("BHASHINI_API_KEY")

@@ -1,15 +1,28 @@
 import os
 import logging
+import json
 from typing import Dict, List, Literal, Optional, Any
 from urllib.parse import urlparse
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from config import Config, log_configuration
 from bhashini_client import bhashini_client, BhashiniAPIError
 from rag_service import rag_client
+
+try:
+    from google import genai
+    from google.genai import types
+    GEMINI_AVAILABLE = True
+except ImportError:
+    GEMINI_AVAILABLE = False
+    logger = logging.getLogger(__name__)
+    logger.warning(
+        "google-genai library not installed. "
+        "Install with: pip install google-genai>=0.3.0"
+    )
 
 from mock_data import (
     DIGILOCKER_RECORDS,
@@ -31,6 +44,20 @@ logger = logging.getLogger(__name__)
 # Initialize API integrations
 Config.validate_required_keys()
 log_configuration()
+
+# Initialize Gemini client
+gemini_client = None
+if GEMINI_AVAILABLE and Config.GEMINI_API_KEY:
+    try:
+        gemini_client = genai.Client(api_key=Config.GEMINI_API_KEY)
+        logger.info("✅ Gemini API client initialized successfully.")
+    except Exception as e:
+        logger.warning(f"⚠️ Failed to initialize Gemini client: {str(e)}")
+else:
+    if not GEMINI_AVAILABLE:
+        logger.warning("⚠️ google-genai library not available. Gemini voice analysis will be disabled.")
+    if not Config.GEMINI_API_KEY:
+        logger.warning("⚠️ GEMINI_API_KEY not configured. Gemini voice analysis will be disabled.")
 
 app = FastAPI(
     title="JanRakshak AI API",
@@ -198,6 +225,16 @@ class TTSResponse(BaseModel):
     language: str
     audio_url: str
     provider: str  # "bhashini" or "mock"
+
+
+class GeminiVoiceAnalyzeResponse(BaseModel):
+    """Response from Gemini voice analysis."""
+    status: str  # "success" or "error"
+    detected_language: Optional[str] = None
+    user_speech_transcript: Optional[str] = None
+    scheme_analysis: Optional[str] = None
+    spoken_response: Optional[str] = None
+    error_detail: Optional[str] = None
 
 
 class ConfigStatusResponse(BaseModel):
@@ -580,6 +617,109 @@ def text_to_speech(request: TTSRequest) -> TTSResponse:
     except Exception as e:
         logger.error(f"Unexpected TTS error: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal server error")
+
+
+# ============================================
+# GOOGLE GEMINI Voice Analysis Endpoints
+# ============================================
+
+@app.post("/api/gemini-voice-analyze", response_model=GeminiVoiceAnalyzeResponse)
+async def analyze_voice_query(audio_file: UploadFile = File(...)) -> GeminiVoiceAnalyzeResponse:
+    """
+    Analyze voice input using Google Gemini multimodal API.
+    
+    Process:
+    1. Detects the language spoken
+    2. Transcribes the audio
+    3. Analyzes scheme eligibility
+    4. Generates plain-text response in detected language
+    
+    Returns structured JSON with language, transcript, analysis, and spoken response.
+    """
+    if not gemini_client:
+        return GeminiVoiceAnalyzeResponse(
+            status="error",
+            error_detail="Gemini API is not configured. Please set GEMINI_API_KEY in environment variables."
+        )
+    
+    try:
+        # Read incoming audio bytes
+        audio_bytes = await audio_file.read()
+        
+        if not audio_bytes:
+            return GeminiVoiceAnalyzeResponse(
+                status="error",
+                error_detail="Audio file is empty or could not be read."
+            )
+        
+        # System prompt for Gemini
+        system_prompt = """You are JanSahayak, an AI digital assistant for Indian government welfare schemes.
+Your task:
+1. Listen to the user's audio input and automatically detect the language spoken.
+2. Transcribe the user's input accurately.
+3. Analyze their request for welfare scheme eligibility (PM-KISAN, Ayushman Bharat, e-SHRAM, PM Awas Yojana, Ayushman Bharat, PM Swanidhi, etc.).
+4. Respond in the EXACT same language detected.
+5. Keep the response under 3 sentences, in clear conversational plain text without markdown symbols or formatting.
+
+Response must be a valid JSON object with these exact fields:
+- detected_language: The language name and BCP-47 code (e.g., "Hindi (hi-IN)")
+- user_speech_transcript: The exact transcript of what the user said
+- scheme_analysis: Brief technical reasoning of eligibility or information matched
+- spoken_response: The exact plain-text answer to be spoken back to the citizen"""
+
+        # Execute multimodal query with Gemini
+        response = gemini_client.models.generate_content(
+            model="gemini-2.0-flash",
+            contents=[
+                types.Part.from_bytes(
+                    data=audio_bytes,
+                    mime_type=audio_file.content_type or "audio/wav"
+                ),
+                "Analyze this audio clip: detect the language, transcribe it, analyze the welfare scheme eligibility, and provide the spoken response."
+            ],
+            config=types.GenerateContentConfig(
+                system_instruction=system_prompt,
+                response_mime_type="application/json",
+                response_schema={
+                    "type": "OBJECT",
+                    "properties": {
+                        "detected_language": {"type": "STRING"},
+                        "user_speech_transcript": {"type": "STRING"},
+                        "scheme_analysis": {"type": "STRING"},
+                        "spoken_response": {"type": "STRING"}
+                    },
+                    "required": ["detected_language", "user_speech_transcript", "scheme_analysis", "spoken_response"]
+                }
+            )
+        )
+        
+        # Parse response
+        response_text = response.text
+        response_json = json.loads(response_text)
+        
+        logger.info(f"Gemini analysis completed successfully for audio file: {audio_file.filename}")
+        
+        return GeminiVoiceAnalyzeResponse(
+            status="success",
+            detected_language=response_json.get("detected_language"),
+            user_speech_transcript=response_json.get("user_speech_transcript"),
+            scheme_analysis=response_json.get("scheme_analysis"),
+            spoken_response=response_json.get("spoken_response")
+        )
+    
+    except json.JSONDecodeError as e:
+        logger.error(f"Failed to parse Gemini response as JSON: {str(e)}")
+        return GeminiVoiceAnalyzeResponse(
+            status="error",
+            error_detail=f"Invalid response format from Gemini API: {str(e)}"
+        )
+    
+    except Exception as e:
+        logger.error(f"Gemini voice analysis error: {str(e)}")
+        return GeminiVoiceAnalyzeResponse(
+            status="error",
+            error_detail=f"Gemini voice analysis failed: {str(e)}"
+        )
 
 
 # ============================================

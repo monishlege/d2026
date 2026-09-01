@@ -1,8 +1,9 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { ChevronDown, MapPin, RefreshCw, ShieldCheck, Sparkles, Tractor, Stethoscope, Landmark, Building2, Sprout, Heart, Bus, GraduationCap, HomeIcon } from "lucide-react";
 
 import { getDistrictsForState, INDIAN_STATES, useGeolocation, type GeolocationHook, type LocationState } from "@/hooks/useGeolocation";
-import type { LocatedScheme, SchemeScope } from "@/types";
+import type { LocatedScheme, SchemeScope, SecurityScanResponse } from "@/types";
+import { scanUrl } from "@/utils/api";
 
 export const LOCATED_SCHEMES: LocatedScheme[] = [
   {
@@ -299,6 +300,7 @@ function formatScopeBadge(scheme: LocatedScheme): { label: string; style: string
 
 interface LocationBasedSchemesFeedProps {
   onCheckEligibility?: (scheme: LocatedScheme) => void;
+  onSecurityScan?: (result: SecurityScanResponse) => void;
   geo?: GeolocationHook;
 }
 
@@ -311,13 +313,37 @@ export function getLocatedSchemes(location: LocationState | null): LocatedScheme
   });
 }
 
-export default function LocationBasedSchemesFeed({ onCheckEligibility, geo: externalGeo }: LocationBasedSchemesFeedProps) {
+export default function LocationBasedSchemesFeed({ onCheckEligibility, onSecurityScan, geo: externalGeo }: LocationBasedSchemesFeedProps) {
   const localGeo = useGeolocation(!externalGeo);
   const geo = externalGeo ?? localGeo;
+  const [scanningUrl, setScanningUrl] = useState<string | null>(null);
 
   const filteredSchemes = useMemo(() => {
     return getLocatedSchemes(geo.location);
   }, [geo.location]);
+
+  async function handleApplyClick(scheme: LocatedScheme) {
+    if (!scheme.applyUrl) {
+      onCheckEligibility?.(scheme);
+      return;
+    }
+
+    setScanningUrl(scheme.applyUrl);
+    try {
+      const result = await scanUrl(scheme.applyUrl);
+      onSecurityScan?.(result);
+      if (!result.safe || !result.official_portal_match) {
+        window.alert("This link failed the Security Dashboard scan and was blocked from redirecting to an unverified portal.");
+        setScanningUrl(null);
+        return;
+      }
+      window.open(scheme.applyUrl, "_blank", "noopener,noreferrer");
+    } catch {
+      window.alert("The portal security check could not complete. Redirect was blocked for safety.");
+    } finally {
+      setScanningUrl(null);
+    }
+  }
 
   return (
     <section className="space-y-5">
@@ -501,14 +527,14 @@ export default function LocationBasedSchemesFeed({ onCheckEligibility, geo: exte
                   Check eligibility
                 </button>
                 {scheme.applyUrl ? (
-                  <a
-                    href={scheme.applyUrl}
-                    target="_blank"
-                    rel="noreferrer noopener"
-                    className="inline-flex items-center justify-center gap-1.5 rounded-2xl border border-orange-300/40 bg-orange-300/10 px-4 py-2.5 text-sm font-semibold text-orange-100 transition hover:bg-orange-300/20"
+                  <button
+                    type="button"
+                    onClick={() => void handleApplyClick(scheme)}
+                    disabled={scanningUrl === scheme.applyUrl}
+                    className="inline-flex items-center justify-center gap-1.5 rounded-2xl border border-orange-300/40 bg-orange-300/10 px-4 py-2.5 text-sm font-semibold text-orange-100 transition hover:bg-orange-300/20 disabled:cursor-not-allowed disabled:opacity-70"
                   >
-                    Apply ↗
-                  </a>
+                    {scanningUrl === scheme.applyUrl ? "Scanning…" : "Apply ↗"}
+                  </button>
                 ) : (
                   <button
                     type="button"

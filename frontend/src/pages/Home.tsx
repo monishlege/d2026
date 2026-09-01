@@ -1,4 +1,4 @@
-import { ArrowRight, AudioLines, Bell, Languages, LogOut, ShieldCheck, UserCircle2 } from "lucide-react";
+import { ArrowRight, AudioLines, Bell, Languages, LogOut, ShieldCheck, UserCircle2, Volume2 } from "lucide-react";
 import { User } from "firebase/auth";
 import { useEffect, useMemo, useState } from "react";
 
@@ -13,7 +13,7 @@ import VoiceInputBar from "@/components/VoiceInputBar";
 import { useAssistantStore } from "@/store/useAssistantStore";
 import { askChat, fetchSchemes, submitSpeech } from "@/utils/api";
 import { getSiteLanguageLabel, getSiteText } from "@/lib/i18n";
-import type { LocatedScheme, SchemeSummary } from "@/types";
+import type { LocatedScheme, SchemeSummary, SecurityScanResponse } from "@/types";
 
 interface HomeProps {
   onLogout?: () => void;
@@ -42,6 +42,9 @@ function readStoredAvatar(): string {
 export default function Home({ onLogout, user }: HomeProps) {
   const [schemes, setSchemes] = useState<SchemeSummary[]>([]);
   const [loadingSchemes, setLoadingSchemes] = useState(true);
+  const [kioskMode, setKioskMode] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [securityScanResult, setSecurityScanResult] = useState<SecurityScanResponse | null>(null);
   const [avatarSrc, setAvatarSrc] = useState<string>(() => {
     return readStoredAvatar();
   });
@@ -132,6 +135,31 @@ export default function Home({ onLogout, user }: HomeProps) {
     }
   }
 
+  function handleListenToResponse() {
+    if (!chatResult || typeof window === "undefined") {
+      return;
+    }
+
+    const text = chatResult.voice_summary || chatResult.answer || transcript || "No response available.";
+    if (!("speechSynthesis" in window)) {
+      return;
+    }
+
+    if (window.speechSynthesis.speaking) {
+      window.speechSynthesis.cancel();
+      setIsSpeaking(false);
+      return;
+    }
+
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = selectedLanguage === "hi" ? "hi-IN" : selectedLanguage === "kn" ? "kn-IN" : "en-IN";
+    utterance.onstart = () => setIsSpeaking(true);
+    utterance.onend = () => setIsSpeaking(false);
+    utterance.onerror = () => setIsSpeaking(false);
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(utterance);
+  }
+
   return (
     <main className="mx-auto flex min-h-screen max-w-[1440px] flex-col gap-8 px-4 py-6 md:px-8 md:py-8">
       {onLogout ? (
@@ -151,16 +179,47 @@ export default function Home({ onLogout, user }: HomeProps) {
               <p className="font-medium text-white">{user?.displayName || user?.email || "Citizen"}</p>
             </div>
           </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              aria-label={kioskMode ? "Kiosk mode enabled" : "Kiosk / Low-Data Mode"}
+              onClick={() => setKioskMode((current) => !current)}
+              className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm transition ${
+                kioskMode
+                  ? "border-cyan-300/40 bg-cyan-300/15 text-cyan-50"
+                  : "border-white/10 bg-white/5 text-slate-200 hover:bg-white/10"
+              }`}
+            >
+              <span className="inline-flex h-2.5 w-2.5 rounded-full bg-current opacity-80" />
+              {kioskMode ? "Kiosk mode enabled" : "Kiosk / Low-Data Mode"}
+            </button>
+            <button
+              type="button"
+              onClick={onLogout}
+              className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-200 transition hover:bg-white/10"
+            >
+              <LogOut className="h-4 w-4" />
+              Sign out
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex justify-end">
           <button
             type="button"
-            onClick={onLogout}
-            className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-200 transition hover:bg-white/10"
+            aria-label={kioskMode ? "Kiosk mode enabled" : "Kiosk / Low-Data Mode"}
+            onClick={() => setKioskMode((current) => !current)}
+            className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm transition ${
+              kioskMode
+                ? "border-cyan-300/40 bg-cyan-300/15 text-cyan-50"
+                : "border-white/10 bg-white/5 text-slate-200 hover:bg-white/10"
+            }`}
           >
-            <LogOut className="h-4 w-4" />
-            Sign out
+            <span className="inline-flex h-2.5 w-2.5 rounded-full bg-current opacity-80" />
+            {kioskMode ? "Kiosk mode enabled" : "Kiosk / Low-Data Mode"}
           </button>
         </div>
-      ) : null}
+      )}
       <section className="hero-panel overflow-hidden rounded-[36px] border border-white/10 px-6 py-8 md:px-10 md:py-12">
         <div className="grid gap-8 xl:grid-cols-[1.1fr,0.9fr] xl:items-center">
           <div className="space-y-6">
@@ -181,11 +240,18 @@ export default function Home({ onLogout, user }: HomeProps) {
               </div>
             </div>
 
-            <div className="grid gap-3 md:grid-cols-3">
-              <FeatureChip icon={AudioLines} label={getSiteText("home.feature1.label", siteLanguage)} detail={getSiteText("home.feature1.detail", siteLanguage)} />
-              <FeatureChip icon={Languages} label={getSiteText("home.feature2.label", siteLanguage)} detail={getSiteText("home.feature2.detail", siteLanguage)} />
-              <FeatureChip icon={ShieldCheck} label={getSiteText("home.feature3.label", siteLanguage)} detail={getSiteText("home.feature3.detail", siteLanguage)} />
-            </div>
+            {kioskMode ? (
+              <div className="rounded-[22px] border border-cyan-300/20 bg-cyan-300/5 p-4 text-sm text-cyan-50">
+                <p className="font-semibold text-cyan-100">Low-data mode active</p>
+                <p className="mt-2 leading-6 text-cyan-50/80">Text-first guidance is enabled for slower networks and public kiosk terminals.</p>
+              </div>
+            ) : (
+              <div className="grid gap-3 md:grid-cols-3">
+                <FeatureChip icon={AudioLines} label={getSiteText("home.feature1.label", siteLanguage)} detail={getSiteText("home.feature1.detail", siteLanguage)} />
+                <FeatureChip icon={Languages} label={getSiteText("home.feature2.label", siteLanguage)} detail={getSiteText("home.feature2.detail", siteLanguage)} />
+                <FeatureChip icon={ShieldCheck} label={getSiteText("home.feature3.label", siteLanguage)} detail={getSiteText("home.feature3.detail", siteLanguage)} />
+              </div>
+            )}
           </div>
 
           <div className="rounded-[28px] border border-white/10 bg-slate-950/55 p-5 md:p-6">
@@ -196,6 +262,17 @@ export default function Home({ onLogout, user }: HomeProps) {
                   <p className="text-xs uppercase tracking-[0.28em] text-slate-400">{getSiteText("home.responseChannel", siteLanguage)}</p>
                   <h2 className="mt-2 font-display text-3xl text-white">{getSiteText("home.guidanceOutcome", siteLanguage)}</h2>
                 </div>
+                {chatResult ? (
+                  <button
+                    type="button"
+                    onClick={handleListenToResponse}
+                    aria-label={isSpeaking ? "Stop response playback" : "Listen to response"}
+                    className="inline-flex items-center gap-2 rounded-full border border-orange-300/30 bg-orange-300/10 px-4 py-2 text-xs uppercase tracking-[0.22em] text-orange-50 transition hover:bg-orange-300/20"
+                  >
+                    <Volume2 className="h-4 w-4" />
+                    {isSpeaking ? "Playing..." : "Play Response"}
+                  </button>
+                ) : null}
               </div>
 
               {chatResult ? (
@@ -248,38 +325,48 @@ export default function Home({ onLogout, user }: HomeProps) {
         </div>
       </section>
 
-      <section className="space-y-5">
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <p className="text-xs uppercase tracking-[0.3em] text-slate-500">{getSiteText("home.prioritySchemes", siteLanguage)}</p>
-            <h2 className="mt-2 font-display text-4xl text-white">{getSiteText("home.prioritySchemesTitle", siteLanguage)}</h2>
+      {!kioskMode ? (
+        <section className="space-y-5">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="text-xs uppercase tracking-[0.3em] text-slate-500">{getSiteText("home.prioritySchemes", siteLanguage)}</p>
+              <h2 className="mt-2 font-display text-4xl text-white">{getSiteText("home.prioritySchemesTitle", siteLanguage)}</h2>
+            </div>
+            <div className="hidden items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs uppercase tracking-[0.22em] text-slate-300 md:inline-flex">
+              {getSiteText("home.exploreModules", siteLanguage)}
+              <ArrowRight className="h-4 w-4" />
+            </div>
           </div>
-          <div className="hidden items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs uppercase tracking-[0.22em] text-slate-300 md:inline-flex">
-            {getSiteText("home.exploreModules", siteLanguage)}
-            <ArrowRight className="h-4 w-4" />
-          </div>
+          {loadingSchemes ? (
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+              {new Array(4).fill(0).map((_, index) => (
+                <div key={index} className="h-48 animate-pulse rounded-[24px] border border-white/10 bg-white/5" />
+              ))}
+            </div>
+          ) : (
+            <SchemeHighlights
+              schemes={locationPrioritySchemes.map(({ name, description, benefit_summary }) => ({
+                name,
+                description,
+                benefit_summary,
+              }))}
+            />
+          )}
+        </section>
+      ) : (
+        <div className="rounded-[24px] border border-dashed border-cyan-300/20 bg-cyan-300/5 p-5 text-sm leading-6 text-cyan-50">
+          Kiosk mode active — displaying a text-only summary to reduce bandwidth and visual clutter.
         </div>
-        {loadingSchemes ? (
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            {new Array(4).fill(0).map((_, index) => (
-              <div key={index} className="h-48 animate-pulse rounded-[24px] border border-white/10 bg-white/5" />
-            ))}
-          </div>
-        ) : (
-          <SchemeHighlights
-            schemes={locationPrioritySchemes.map(({ name, description, benefit_summary }) => ({
-              name,
-              description,
-              benefit_summary,
-            }))}
-          />
-        )}
-      </section>
+      )}
 
       <EligibilityWizard schemes={schemes} />
-      <LocationBasedSchemesFeed geo={geo} onCheckEligibility={handleEligibilityCheck} />
+      <LocationBasedSchemesFeed
+        geo={geo}
+        onCheckEligibility={handleEligibilityCheck}
+        onSecurityScan={setSecurityScanResult}
+      />
       <DigiLockerSandbox />
-      <AntiPhishingScanner />
+      <AntiPhishingScanner externalResult={securityScanResult} />
     </main>
   );
 }

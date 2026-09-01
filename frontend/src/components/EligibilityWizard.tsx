@@ -1,5 +1,5 @@
 import { CheckCircle2, ChevronRight, ShieldAlert, XCircle } from "lucide-react";
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 
 import SectionShell from "@/components/SectionShell";
 import { useAssistantStore } from "@/store/useAssistantStore";
@@ -77,6 +77,95 @@ export default function EligibilityWizard({ schemes }: EligibilityWizardProps) {
     () => schemes.find((scheme) => scheme.name === form.scheme_name),
     [form.scheme_name, schemes],
   );
+
+  const currentRules = PROTOTYPE_RULES[form.scheme_name];
+  const logicPath = useMemo(() => {
+    const entries: Array<{ label: string; passed: boolean }> = [];
+
+    if (currentRules?.maxIncome !== undefined) {
+      entries.push({
+        label: `Income ≤ ₹${currentRules.maxIncome.toLocaleString("en-IN")}`,
+        passed: form.annual_income <= currentRules.maxIncome,
+      });
+    }
+    if (currentRules?.maxLandholding !== undefined) {
+      entries.push({
+        label: `Landholding ≤ ${currentRules.maxLandholding} acres`,
+        passed: form.landholding_acres <= currentRules.maxLandholding,
+      });
+    }
+    if (currentRules?.requiresFarmer) {
+      entries.push({
+        label: "Farming landholding present",
+        passed: form.landholding_acres > 0,
+      });
+    }
+    if (currentRules?.requiresSecc) {
+      entries.push({
+        label: "SECC proof available",
+        passed: form.has_secc_card,
+      });
+    }
+    if (currentRules?.requiresNoHouse) {
+      entries.push({
+        label: "No pucca house",
+        passed: !form.owns_pucca_house,
+      });
+    }
+    if (currentRules?.occupations) {
+      entries.push({
+        label: `Occupation ∈ ${currentRules.occupations.join(", ")}`,
+        passed: currentRules.occupations.includes(form.occupation_code.toUpperCase()),
+      });
+    }
+    if (currentRules?.requiresVendor) {
+      entries.push({
+        label: "Street vendor identity",
+        passed: form.is_street_vendor,
+      });
+    }
+
+    return entries;
+  }, [currentRules, form]);
+
+  function handleEscalateToCsc() {
+    if (!result || typeof window === "undefined") {
+      return;
+    }
+
+    const summary = [
+      "Gram Panchayat CSC Escalation Ticket",
+      "===============================",
+      `Scheme: ${result.scheme_name}`,
+      `Status: ${result.eligible ? "Eligible" : "Needs manual review"}`,
+      "",
+      "Decision trace:",
+      ...result.matched_rules.map((rule) => `- ${rule}`),
+      ...result.failed_rules.map((rule) => `- ${rule}`),
+      "",
+      "Required documents:",
+      ...result.required_documents.map((document) => `- ${document}`),
+      "",
+      `Benefit summary: ${result.benefit_summary}`,
+    ].join("\n");
+
+    const printWindow = window.open("", "_blank", "width=720,height=900");
+    if (printWindow) {
+      printWindow.document.write(`<!doctype html><html><head><title>CSC Escalation Ticket</title></head><body style="font-family:Arial,sans-serif;padding:32px;line-height:1.6;white-space:pre-wrap;">${summary.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</body></html>`);
+      printWindow.document.close();
+      printWindow.focus();
+      printWindow.print();
+      return;
+    }
+
+    const blob = new Blob([summary], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `gram-panchayat-csc-${result.scheme_name.toLowerCase().replace(/\s+/g, "-")}.txt`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  }
 
   async function evaluate() {
     setIsLoading(true);
@@ -295,6 +384,23 @@ export default function EligibilityWizard({ schemes }: EligibilityWizardProps) {
           {result ? (
             <div className="space-y-5">
               <p className="text-sm leading-6 text-slate-300">{result.benefit_summary}</p>
+              <div className="rounded-[20px] border border-cyan-300/20 bg-cyan-300/5 p-4">
+                <p className="mb-3 text-sm font-semibold uppercase tracking-[0.2em] text-cyan-100">Logical flow</p>
+                <div className="flex flex-wrap items-center gap-2">
+                  {logicPath.length > 0 ? (
+                    logicPath.map((step, index) => (
+                      <Fragment key={`${step.label}-${index}`}>
+                        <span className={`rounded-full border px-3 py-2 text-xs ${step.passed ? "border-emerald-400/20 bg-emerald-400/10 text-emerald-100" : "border-rose-400/20 bg-rose-400/10 text-rose-100"}`}>
+                          [{step.label}: {step.passed ? "✅" : "❌"}]
+                        </span>
+                        {index < logicPath.length - 1 ? <ChevronRight className="h-4 w-4 text-slate-300" /> : null}
+                      </Fragment>
+                    ))
+                  ) : (
+                    <span className="text-sm text-slate-400">No logic path available.</span>
+                  )}
+                </div>
+              </div>
               <RuleList title={getSiteText("eligibility.matched", siteLanguage)} icon={CheckCircle2} items={result.matched_rules} tone="success" />
               <RuleList title={getSiteText("eligibility.failed", siteLanguage)} icon={XCircle} items={result.failed_rules} tone="danger" />
               <div className="rounded-[20px] border border-white/10 bg-white/5 p-4">
@@ -310,6 +416,16 @@ export default function EligibilityWizard({ schemes }: EligibilityWizardProps) {
                   ))}
                 </div>
               </div>
+              {!result.eligible ? (
+                <button
+                  type="button"
+                  onClick={handleEscalateToCsc}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-amber-300/30 bg-amber-300/10 px-5 py-3 text-sm font-semibold text-amber-50 transition hover:bg-amber-300/15"
+                >
+                  <ShieldAlert className="h-4 w-4" />
+                  Escalate to Local Gram Panchayat CSC Agent
+                </button>
+              ) : null}
             </div>
           ) : (
             <div className="rounded-[20px] border border-dashed border-white/10 bg-white/[0.03] p-5 text-sm leading-6 text-slate-400">

@@ -12,11 +12,16 @@ const sampleLinks = [
   "https://beneficiary.nha.gov.in",
 ];
 
-export default function AntiPhishingScanner() {
+interface AntiPhishingScannerProps {
+  externalResult?: SecurityScanResponse | null;
+}
+
+export default function AntiPhishingScanner({ externalResult = null }: AntiPhishingScannerProps) {
   const { siteLanguage } = useAssistantStore();
   const [url, setUrl] = useState(sampleLinks[1]);
   const [result, setResult] = useState<SecurityScanResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const displayedResult = externalResult ?? result;
 
   function analyzeUrl() {
     setIsLoading(true);
@@ -123,37 +128,37 @@ export default function AntiPhishingScanner() {
         </div>
 
         <div className="rounded-[24px] border border-white/10 bg-slate-950/60 p-5">
-          {result ? (
+          {displayedResult ? (
             <div className="space-y-5">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                     <p className="text-xs uppercase tracking-[0.3em] text-slate-400">{getSiteText("security.safetyScore", siteLanguage)}</p>
-                    <p className="font-display text-5xl text-white">{result.score}</p>
+                    <p className="font-display text-5xl text-white">{displayedResult.score}</p>
                   </div>
                   <span
                     className={`rounded-full px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] ${
-                      result.safe ? "bg-emerald-400/15 text-emerald-100" : "bg-rose-400/15 text-rose-100"
+                      displayedResult.safe ? "bg-emerald-400/15 text-emerald-100" : "bg-rose-400/15 text-rose-100"
                     }`}
                   >
-                    {result.safe ? getSiteText("security.official", siteLanguage) : getSiteText("security.unsafe", siteLanguage)}
+                    {displayedResult.safe ? getSiteText("security.official", siteLanguage) : getSiteText("security.unsafe", siteLanguage)}
                   </span>
               </div>
 
               <div className="h-3 overflow-hidden rounded-full bg-white/5">
-                <div className="h-full rounded-full bg-gradient-to-r from-rose-400 via-orange-300 to-emerald-300" style={{ width: `${result.score}%` }} />
+                <div className="h-full rounded-full bg-gradient-to-r from-rose-400 via-orange-300 to-emerald-300" style={{ width: `${displayedResult.score}%` }} />
               </div>
 
               <div className="grid gap-4 md:grid-cols-2">
                 <SignalCard
-                  icon={result.safe ? CheckCheck : AlertTriangle}
+                  icon={displayedResult.safe ? CheckCheck : AlertTriangle}
                   title={getSiteText("security.threats", siteLanguage)}
-                  detail={result.indicators.join(" ")}
+                  detail={`${displayedResult.url}: ${displayedResult.indicators.join(" ")}`}
                 />
                 <SignalCard
                   icon={GlobeLock}
                   title={getSiteText("security.portalVerification", siteLanguage)}
                   detail={
-                    result.official_portal_match
+                    displayedResult.official_portal_match
                       ? getSiteText("security.portalMatch", siteLanguage)
                       : getSiteText("security.portalNoMatch", siteLanguage)
                   }
