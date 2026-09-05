@@ -59,6 +59,10 @@ const WEBKIT_LANG_MAP: Record<LanguageCode, string> = {
   en: "en-IN",
 };
 
+function hasBrowserSpeechRecognition(): boolean {
+  return typeof window !== "undefined" && Boolean(window.SpeechRecognition || window.webkitSpeechRecognition);
+}
+
 const localHosts = new Set(["localhost", "127.0.0.1"]);
 const API_BASE =
   typeof window !== "undefined" && localHosts.has(window.location.hostname)
@@ -116,14 +120,10 @@ export function useBhashiniSTT(initialLanguage: LanguageCode = "hi"): BhashiniST
     void (async () => {
       const hasBhashini = await detectBackendBhashiniConfigured();
       if (!active) return;
-      if (hasBhashini) {
-        setProvider("bhashini");
-        return;
-      }
-      const hasWebkit =
-        typeof window !== "undefined" &&
-        Boolean(window.SpeechRecognition || window.webkitSpeechRecognition);
-      setProvider(hasWebkit ? "webkit" : "mock");
+      const hasWebkit = hasBrowserSpeechRecognition();
+      // Prefer native browser recognition for immediate microphone feedback.
+      // Use Bhashini only when the browser has no SpeechRecognition API.
+      setProvider(hasWebkit ? "webkit" : hasBhashini ? "bhashini" : "mock");
     })();
     return () => {
       active = false;
@@ -226,7 +226,7 @@ export function useBhashiniSTT(initialLanguage: LanguageCode = "hi"): BhashiniST
           return;
         } catch (err) {
           setError(err instanceof Error ? err.message : "Webkit STT failed to start");
-          setProvider("mock");
+          setProvider(hasBrowserSpeechRecognition() ? "webkit" : "mock");
         }
       }
     }
