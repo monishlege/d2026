@@ -70,6 +70,7 @@ cors_origins = [o for o in Config.CORS_ORIGINS if o]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins,
+    allow_origin_regex=r"https://([a-z0-9-]+\.)*vercel\.app$|https://([a-z0-9-]+\.)*vercel\.sh$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
