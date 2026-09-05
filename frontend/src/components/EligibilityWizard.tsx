@@ -4,6 +4,7 @@ import { Fragment, useEffect, useMemo, useState } from "react";
 import SectionShell from "@/components/SectionShell";
 import { useAssistantStore } from "@/store/useAssistantStore";
 import { getSiteText } from "@/lib/i18n";
+import { checkEligibility } from "@/utils/api";
 import type { EligibilityRequest, EligibilityResponse, SchemeSummary } from "@/types";
 
 const initialForm: EligibilityRequest = {
@@ -12,6 +13,7 @@ const initialForm: EligibilityRequest = {
   landholding_acres: 2,
   has_secc_card: true,
   occupation_code: "UNORG",
+  category: "GENERAL",
   owns_pucca_house: false,
   is_street_vendor: false,
 };
@@ -173,6 +175,15 @@ export default function EligibilityWizard({ schemes, selectedSchemeName }: Eligi
 
   async function evaluate() {
     setIsLoading(true);
+    try {
+      const response = await checkEligibility(form);
+      setResult(response);
+      setIsLoading(false);
+      return;
+    } catch {
+      // Keep the deterministic local rules available when the API is offline.
+    }
+
     const scheme = schemes.find((item) => item.name === form.scheme_name);
     const rules = PROTOTYPE_RULES[form.scheme_name];
     const matchedRules: string[] = [];
@@ -310,6 +321,19 @@ export default function EligibilityWizard({ schemes, selectedSchemeName }: Eligi
                   onChange={(event) => updateForm("occupation_code", event.target.value.toUpperCase())}
                   className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none"
                 />
+              </label>
+              <label className="space-y-2 text-sm text-slate-300">
+                <span>Category</span>
+                <select
+                  value={form.category}
+                  onChange={(event) => updateForm("category", event.target.value)}
+                  className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none"
+                >
+                  <option value="GENERAL" className="bg-slate-950">General</option>
+                  <option value="SC" className="bg-slate-950">Scheduled Caste</option>
+                  <option value="ST" className="bg-slate-950">Scheduled Tribe</option>
+                  <option value="OBC" className="bg-slate-950">Other Backward Class</option>
+                </select>
               </label>
               <ToggleRow
                 label={getSiteText("eligibility.secc", siteLanguage)}

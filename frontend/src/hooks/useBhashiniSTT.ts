@@ -233,7 +233,7 @@ export function useBhashiniSTT(initialLanguage: LanguageCode = "hi"): BhashiniST
 
     if (provider === "mock" || provider === "bhashini") {
       if (!("mediaDevices" in navigator) || typeof navigator.mediaDevices?.getUserMedia !== "function") {
-        setError("Microphone access is not available in this browser context.");
+        setError("Microphone access blocked. Enable permissions in your browser bar or type your query below.");
         return;
       }
 
@@ -265,7 +265,7 @@ export function useBhashiniSTT(initialLanguage: LanguageCode = "hi"): BhashiniST
         } else if (err?.name === "NotFoundError") {
           setError("No microphone detected on this device.");
         } else {
-          setError(err?.message || "Could not start microphone recording");
+          setError(err?.message || "Microphone access blocked. Enable permissions in your browser bar or type your query below.");
         }
         cleanupAudio();
       }

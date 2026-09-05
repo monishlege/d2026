@@ -50,6 +50,7 @@ export interface EligibilityRequest {
   landholding_acres: number;
   has_secc_card: boolean;
   occupation_code: string;
+  category: string;
   owns_pucca_house: boolean;
   is_street_vendor: boolean;
 }

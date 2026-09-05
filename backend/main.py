@@ -96,6 +96,7 @@ class EligibilityRequest(BaseModel):
     landholding_acres: Optional[float] = Field(default=0, ge=0)
     has_secc_card: bool = False
     occupation_code: Optional[str] = ""
+    category: Optional[str] = "GENERAL"
     owns_pucca_house: bool = False
     is_street_vendor: bool = False
 
