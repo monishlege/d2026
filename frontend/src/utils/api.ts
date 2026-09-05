@@ -13,25 +13,68 @@ const localHosts = new Set(["localhost", "127.0.0.1"]);
 const configuredApiBase = import.meta.env.VITE_API_URL?.replace(/\/$/, "");
 const productionApiBase = configuredApiBase || "https://decodesih2026.onrender.com";
 
-const API_BASE = localHosts.has(window.location.hostname)
-  ? "http://localhost:8000/api"
-  : `${productionApiBase}/api`;
+function getApiCandidates(): string[] {
+  const candidates = new Set<string>();
+  const localBackend = "http://localhost:8000/api";
+  const sameOrigin = typeof window !== "undefined" ? `${window.location.origin}/api` : "";
+  const remoteBackend = `${productionApiBase}/api`;
+
+  if (typeof window !== "undefined" && localHosts.has(window.location.hostname)) {
+    candidates.add(localBackend);
+  }
+
+  if (sameOrigin) {
+    candidates.add(sameOrigin);
+  }
+
+  if (remoteBackend) {
+    candidates.add(remoteBackend);
+  }
+
+  if (!candidates.size) {
+    candidates.add(localBackend);
+  }
+
+  return Array.from(candidates);
+}
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, {
+  const requestOptions: RequestInit = {
     headers: {
       "Content-Type": "application/json",
       ...(init?.headers ?? {}),
     },
     ...init,
-  });
+  };
 
-  if (!response.ok) {
-    const message = await response.text();
-    throw new Error(message || `Request failed with status ${response.status}`);
+  let lastError: unknown = null;
+
+  for (const baseUrl of getApiCandidates()) {
+    try {
+      const response = await fetch(`${baseUrl}${path}`, requestOptions);
+
+      if (!response.ok) {
+        const message = await response.text();
+        const errorText = message || `Request failed with status ${response.status}`;
+
+        if (response.status >= 400 && response.status < 500 && response.status !== 404) {
+          throw new Error(errorText);
+        }
+
+        lastError = new Error(errorText);
+        continue;
+      }
+
+      return (await response.json()) as T;
+    } catch (error) {
+      lastError = error;
+      continue;
+    }
   }
 
-  return response.json() as Promise<T>;
+  throw lastError instanceof Error
+    ? lastError
+    : new Error("Unable to contact backend services.");
 }
 
 export function login(payload: { username: string; password: string }): Promise<{ token: string; role: string }> {

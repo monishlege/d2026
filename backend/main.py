@@ -682,7 +682,7 @@ You must return ONLY a valid JSON object matching this exact schema:
 
         # Execute multimodal query with Gemini
         response = gemini_client.models.generate_content(
-            model="gemini-2.0-flash",
+            model="gemini-3.6-flash",
             contents=[
                 types.Part.from_bytes(
                     data=audio_bytes,

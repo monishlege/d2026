@@ -78,6 +78,21 @@ export default function Home({ onLogout, user }: HomeProps) {
     void loadSchemes();
   }, []);
 
+  function buildOfflineFallback(message: string, references: string[] = ["Offline mode"]) {
+    return {
+      answer: message,
+      confidence: "low" as const,
+      references,
+      voice_summary: "The service is temporarily offline. Please try again in a moment.",
+      guidance_steps: [
+        "Retry the request after a moment.",
+        "Check your internet connection.",
+        "Use the scheme summary cards while the service is unavailable.",
+      ],
+      offline_alert: "The backend is unavailable right now. Your data remains safe and the app will retry once the connection is restored.",
+    };
+  }
+
   async function handleVoiceSubmit(text: string) {
     if (!text.trim()) {
       return;
@@ -92,15 +107,14 @@ export default function Home({ onLogout, user }: HomeProps) {
         intent: speech.detected_intent,
         chatResult: chat,
       });
-    } catch (error) {
+    } catch {
       finishVoiceProcessing({
         transcript: text,
         intent: "general_query",
-        chatResult: {
-          answer: error instanceof Error ? error.message : "Unable to contact backend services.",
-          confidence: "low",
-          references: ["Backend service unavailable"],
-        },
+        chatResult: buildOfflineFallback(
+          "I couldn't reach the service right now. Please try again in a moment or use the scheme summary cards below.",
+          ["Offline mode"],
+        ),
       });
     }
   }
@@ -116,21 +130,14 @@ export default function Home({ onLogout, user }: HomeProps) {
         intent: speech.detected_intent,
         chatResult: chat,
       });
-    } catch (error) {
+    } catch {
       finishVoiceProcessing({
         transcript: prompt,
         intent: "eligibility_check",
-        chatResult: {
-          answer:
-            error instanceof Error
-              ? error.message
-              : "Unable to contact backend services. Showing scheme summary:\n\n" +
-                scheme.description +
-                "\nBenefits: " +
-                scheme.benefit_summary,
-          confidence: "low",
-          references: [scheme.name, scheme.scope],
-        },
+        chatResult: buildOfflineFallback(
+          `I couldn't reach the service right now, so I’m showing the summary for ${scheme.name} while the network reconnects.\n\n${scheme.description}\nBenefits: ${scheme.benefit_summary}`,
+          [scheme.name, scheme.scope],
+        ),
       });
     }
   }
