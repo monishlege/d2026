@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { ChevronDown, MapPin, RefreshCw, ShieldCheck, Sparkles, Tractor, Stethoscope, Landmark, Building2, Sprout, Heart, Bus, GraduationCap, HomeIcon } from "lucide-react";
 
 import { getDistrictsForState, INDIAN_STATES, useGeolocation, type GeolocationHook, type LocationState } from "@/hooks/useGeolocation";
-import type { LocatedScheme, SchemeScope, SecurityScanResponse } from "@/types";
+import type { LocatedScheme, SchemeScope } from "@/types";
 import { scanUrl } from "@/utils/api";
 
 export const LOCATED_SCHEMES: LocatedScheme[] = [
@@ -300,7 +300,6 @@ function formatScopeBadge(scheme: LocatedScheme): { label: string; style: string
 
 interface LocationBasedSchemesFeedProps {
   onCheckEligibility?: (scheme: LocatedScheme) => void;
-  onSecurityScan?: (result: SecurityScanResponse) => void;
   geo?: GeolocationHook;
 }
 
@@ -313,7 +312,7 @@ export function getLocatedSchemes(location: LocationState | null): LocatedScheme
   });
 }
 
-export default function LocationBasedSchemesFeed({ onCheckEligibility, onSecurityScan, geo: externalGeo }: LocationBasedSchemesFeedProps) {
+export default function LocationBasedSchemesFeed({ onCheckEligibility, geo: externalGeo }: LocationBasedSchemesFeedProps) {
   const localGeo = useGeolocation(!externalGeo);
   const geo = externalGeo ?? localGeo;
   const [scanningUrl, setScanningUrl] = useState<string | null>(null);
@@ -331,7 +330,6 @@ export default function LocationBasedSchemesFeed({ onCheckEligibility, onSecurit
     setScanningUrl(scheme.applyUrl);
     try {
       const result = await scanUrl(scheme.applyUrl);
-      onSecurityScan?.(result);
       if (!result.safe || !result.official_portal_match) {
         window.alert("This link failed the Security Dashboard scan and was blocked from redirecting to an unverified portal.");
         setScanningUrl(null);

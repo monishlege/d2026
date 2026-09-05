@@ -130,12 +130,13 @@ export default function VoiceInputBar({ onSubmit }: VoiceInputBarProps) {
         setDisplayText(finalText);
         setTranscript(finalText);
         setSiteLanguage(detectLanguageFromText(finalText));
+        await onSubmit(finalText);
       }
       return;
     }
     stt.resetTranscript();
     await stt.startRecording();
-  }, [stt, setTranscript, setSiteLanguage]);
+  }, [stt, setTranscript, setSiteLanguage, onSubmit]);
 
   const handleStopClick = useCallback(() => {
     stt.cancelRecording();

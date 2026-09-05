@@ -1,5 +1,5 @@
 import { CheckCircle2, ChevronRight, ShieldAlert, XCircle } from "lucide-react";
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 
 import SectionShell from "@/components/SectionShell";
 import { useAssistantStore } from "@/store/useAssistantStore";
@@ -15,8 +15,6 @@ const initialForm: EligibilityRequest = {
   owns_pucca_house: false,
   is_street_vendor: false,
 };
-
-const stepTitles = ["Profile", "Scheme Fit", "Housing and Occupation"];
 
 const PROTOTYPE_RULES: Record<string, {
   maxIncome?: number;
@@ -57,9 +55,10 @@ const PROTOTYPE_RULES: Record<string, {
 
 interface EligibilityWizardProps {
   schemes: SchemeSummary[];
+  selectedSchemeName?: string;
 }
 
-export default function EligibilityWizard({ schemes }: EligibilityWizardProps) {
+export default function EligibilityWizard({ schemes, selectedSchemeName }: EligibilityWizardProps) {
   const { siteLanguage } = useAssistantStore();
   const [step, setStep] = useState(0);
   const [form, setForm] = useState<EligibilityRequest>(initialForm);
@@ -72,6 +71,11 @@ export default function EligibilityWizard({ schemes }: EligibilityWizardProps) {
     getSiteText("eligibility.step2", siteLanguage),
     getSiteText("eligibility.step3", siteLanguage),
   ];
+
+  useEffect(() => {
+    if (!selectedSchemeName || selectedSchemeName === form.scheme_name) return;
+    setForm((current) => ({ ...current, scheme_name: selectedSchemeName }));
+  }, [selectedSchemeName, form.scheme_name]);
 
   const selectedScheme = useMemo(
     () => schemes.find((scheme) => scheme.name === form.scheme_name),

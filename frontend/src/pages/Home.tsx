@@ -1,9 +1,8 @@
 import { ArrowRight, AudioLines, Bell, Languages, LogOut, ShieldCheck, UserCircle2, Volume2 } from "lucide-react";
 import { User } from "firebase/auth";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import AntiPhishingScanner from "@/components/AntiPhishingScanner";
-import ConfidenceBadge from "@/components/ConfidenceBadge";
 import DigiLockerSandbox from "@/components/DigiLockerSandbox";
 import EligibilityWizard from "@/components/EligibilityWizard";
 import LocationBasedSchemesFeed, { getLocatedSchemes } from "@/components/LocationBasedSchemesFeed";
@@ -13,7 +12,7 @@ import VoiceInputBar from "@/components/VoiceInputBar";
 import { useAssistantStore } from "@/store/useAssistantStore";
 import { askChat, fetchSchemes, submitSpeech } from "@/utils/api";
 import { getSiteLanguageLabel, getSiteText } from "@/lib/i18n";
-import type { LocatedScheme, SchemeSummary, SecurityScanResponse } from "@/types";
+import type { LocatedScheme, SchemeSummary } from "@/types";
 
 interface HomeProps {
   onLogout?: () => void;
@@ -39,13 +38,70 @@ function readStoredAvatar(): string {
   }
 }
 
+function buildOfflineFallbackResponse(query: string): NonNullable<ReturnType<typeof useAssistantStore.getState>['chatResult']> {
+  const text = query.trim() || "scheme eligibility question";
+  const lower = text.toLowerCase();
+
+  let answer = "I can help check your scheme eligibility and guide you to the right official portal. Please verify the final information on the government website before submitting any personal details.";
+  let voiceSummary = "I can help you check the right welfare scheme and the official portal to use.";
+  let guidanceSteps = [
+    "Step 1: Confirm the scheme name, income range, family size, and occupation details.",
+    "Step 2: Check the official domain before sharing Aadhaar, bank, or income information.",
+    "Step 3: Use your nearest CSC or official government portal to complete the application.",
+  ];
+
+  if (lower.includes("pm-kisan") || lower.includes("kisan")) {
+    answer = "PM-KISAN is intended for eligible farmer families with annual income and landholding conditions. Please compare your details with the official PM-KISAN criteria before applying.";
+    voiceSummary = "PM-KISAN is for eligible farmer families. Check income and landholding details before applying.";
+    guidanceSteps = [
+      "Step 1: Check whether you are a farmer family and confirm your annual income and landholding details.",
+      "Step 2: Keep Aadhaar, bank account, and land records ready for verification.",
+      "Step 3: Apply on the official PM-KISAN portal or through a nearby CSC.",
+    ];
+  } else if (lower.includes("ayushman") || lower.includes("health")) {
+    answer = "Ayushman Bharat usually checks income and SECC-linked eligibility. Review your family details and use the official health portal to confirm coverage before applying.";
+    voiceSummary = "Ayushman Bharat may help with health cover if your family meets the income and SECC eligibility checks.";
+    guidanceSteps = [
+      "Step 1: Check your SECC-linked eligibility and household income details.",
+      "Step 2: Keep Aadhaar, ration card, and family details ready.",
+      "Step 3: Verify the official Ayushman Bharat portal before submitting any information.",
+    ];
+  } else if (lower.includes("housing") || lower.includes("awas") || lower.includes("house")) {
+    answer = "PM Awas Yojana is typically for households without a pucca house and with income or housing-related eligibility criteria. Review the latest official rules before applying.";
+    voiceSummary = "PM Awas Yojana may help with housing support if your household meets the required housing and income criteria.";
+    guidanceSteps = [
+      "Step 1: Confirm whether your household owns a pucca house and your annual income bracket.",
+      "Step 2: Keep Aadhaar, residence proof, and income documents ready.",
+      "Step 3: Use the official PM Awas Yojana portal or a CSC for the final check.",
+    ];
+  } else if (lower.includes("document") || lower.includes("certificate") || lower.includes("digilocker")) {
+    answer = "For document access, use DigiLocker or the official scheme portal, and only share verified records. Keep your Aadhaar and certificate details ready and check the official site before downloading anything.";
+    voiceSummary = "Document access is easiest through DigiLocker and the official scheme portal with verified records.";
+    guidanceSteps = [
+      "Step 1: Confirm which certificate or document is required for the application.",
+      "Step 2: Use DigiLocker or the official portal to fetch verified records.",
+      "Step 3: Check the URL and keep personal details limited to trusted government sources.",
+    ];
+  }
+
+  return {
+    answer,
+    confidence: "medium",
+    references: ["Official government portal guidance", "Local CSC verification"],
+    voice_summary: voiceSummary,
+    guidance_steps: guidanceSteps,
+    security_check: "Use only verified .gov.in or .nic.in services and confirm HTTPS before entering Aadhaar, bank, or income details.",
+    offline_alert: "If the network is weak, visit the nearest CSC or official service center for the final verification.",
+  };
+}
+
 export default function Home({ onLogout, user }: HomeProps) {
   const [schemes, setSchemes] = useState<SchemeSummary[]>([]);
   const [loadingSchemes, setLoadingSchemes] = useState(true);
   const [kioskMode, setKioskMode] = useState(false);
+  const [selectedSchemeName, setSelectedSchemeName] = useState<string>("PM-KISAN");
   const [isSpeaking, setIsSpeaking] = useState(false);
-  const [securityScanResult, setSecurityScanResult] = useState<SecurityScanResponse | null>(null);
-  const [avatarSrc, setAvatarSrc] = useState<string>(() => {
+  const [avatarSrc] = useState<string>(() => {
     return readStoredAvatar();
   });
   const geo = useGeolocation();
@@ -78,21 +134,6 @@ export default function Home({ onLogout, user }: HomeProps) {
     void loadSchemes();
   }, []);
 
-  function buildOfflineFallback(message: string, references: string[] = ["Offline mode"]) {
-    return {
-      answer: message,
-      confidence: "low" as const,
-      references,
-      voice_summary: "The service is temporarily offline. Please try again in a moment.",
-      guidance_steps: [
-        "Retry the request after a moment.",
-        "Check your internet connection.",
-        "Use the scheme summary cards while the service is unavailable.",
-      ],
-      offline_alert: "The backend is unavailable right now. Your data remains safe and the app will retry once the connection is restored.",
-    };
-  }
-
   async function handleVoiceSubmit(text: string) {
     if (!text.trim()) {
       return;
@@ -107,19 +148,31 @@ export default function Home({ onLogout, user }: HomeProps) {
         intent: speech.detected_intent,
         chatResult: chat,
       });
-    } catch {
+    } catch (error) {
+      const fallback = buildOfflineFallbackResponse(text);
       finishVoiceProcessing({
         transcript: text,
         intent: "general_query",
-        chatResult: buildOfflineFallback(
-          "I couldn't reach the service right now. Please try again in a moment or use the scheme summary cards below.",
-          ["Offline mode"],
-        ),
+        chatResult: {
+          ...fallback,
+          answer:
+            error instanceof Error && error.message.toLowerCase().includes("backend")
+              ? fallback.answer
+              : error instanceof Error
+                ? error.message
+                : fallback.answer,
+        },
       });
     }
   }
 
   async function handleEligibilityCheck(scheme: LocatedScheme) {
+    setSelectedSchemeName(scheme.name);
+    const wizard = document.getElementById("eligibility-wizard");
+    if (wizard) {
+      wizard.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+
     const prompt = `Check my eligibility for ${scheme.name} (${scheme.scope}) based on typical profile`;
     startVoiceProcessing();
     try {
@@ -130,14 +183,21 @@ export default function Home({ onLogout, user }: HomeProps) {
         intent: speech.detected_intent,
         chatResult: chat,
       });
-    } catch {
+    } catch (error) {
+      const fallback = buildOfflineFallbackResponse(prompt);
       finishVoiceProcessing({
         transcript: prompt,
         intent: "eligibility_check",
-        chatResult: buildOfflineFallback(
-          `I couldn't reach the service right now, so I’m showing the summary for ${scheme.name} while the network reconnects.\n\n${scheme.description}\nBenefits: ${scheme.benefit_summary}`,
-          [scheme.name, scheme.scope],
-        ),
+        chatResult: {
+          ...fallback,
+          answer:
+            error instanceof Error && error.message.toLowerCase().includes("backend")
+              ? fallback.answer
+              : error instanceof Error
+                ? error.message
+                : fallback.answer,
+          references: [scheme.name, scheme.scope],
+        },
       });
     }
   }
@@ -147,8 +207,11 @@ export default function Home({ onLogout, user }: HomeProps) {
       return;
     }
 
-    const text = chatResult.voice_summary || chatResult.answer || transcript || "No response available.";
-    if (!("speechSynthesis" in window)) {
+    speakResponse(chatResult.voice_summary || chatResult.answer || transcript || "No response available.");
+  }
+
+  const speakResponse = useCallback((text: string) => {
+    if (typeof window === "undefined" || !("speechSynthesis" in window) || typeof SpeechSynthesisUtterance === "undefined") {
       return;
     }
 
@@ -165,7 +228,12 @@ export default function Home({ onLogout, user }: HomeProps) {
     utterance.onerror = () => setIsSpeaking(false);
     window.speechSynthesis.cancel();
     window.speechSynthesis.speak(utterance);
-  }
+  }, [selectedLanguage]);
+
+  useEffect(() => {
+    if (!chatResult) return;
+    speakResponse(chatResult.voice_summary || chatResult.answer || transcript || "No response available.");
+  }, [chatResult, transcript, speakResponse]);
 
   return (
     <main className="mx-auto flex min-h-screen max-w-[1440px] flex-col gap-8 px-4 py-6 md:px-8 md:py-8">
@@ -273,7 +341,6 @@ export default function Home({ onLogout, user }: HomeProps) {
                   <button
                     type="button"
                     onClick={handleListenToResponse}
-                    aria-label={isSpeaking ? "Stop response playback" : "Listen to response"}
                     className="inline-flex items-center gap-2 rounded-full border border-orange-300/30 bg-orange-300/10 px-4 py-2 text-xs uppercase tracking-[0.22em] text-orange-50 transition hover:bg-orange-300/20"
                   >
                     <Volume2 className="h-4 w-4" />
@@ -366,14 +433,12 @@ export default function Home({ onLogout, user }: HomeProps) {
         </div>
       )}
 
-      <EligibilityWizard schemes={schemes} />
-      <LocationBasedSchemesFeed
-        geo={geo}
-        onCheckEligibility={handleEligibilityCheck}
-        onSecurityScan={setSecurityScanResult}
-      />
+      <div id="eligibility-wizard">
+        <EligibilityWizard schemes={schemes} selectedSchemeName={selectedSchemeName} />
+      </div>
+      <LocationBasedSchemesFeed geo={geo} onCheckEligibility={handleEligibilityCheck} />
       <DigiLockerSandbox />
-      <AntiPhishingScanner externalResult={securityScanResult} />
+      <AntiPhishingScanner />
     </main>
   );
 }
