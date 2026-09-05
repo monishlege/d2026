@@ -112,6 +112,7 @@ export function useBhashiniSTT(initialLanguage: LanguageCode = "hi"): BhashiniST
   const rafRef = useRef<number | null>(null);
   const webkitRef = useRef<WebkitRecognition | null>(null);
   const finalResolveRef = useRef<((value: string) => void) | null>(null);
+  const finalTranscriptRef = useRef("");
 
   const [provider, setProvider] = useState<STTProvider>("mock");
 
@@ -178,6 +179,7 @@ export function useBhashiniSTT(initialLanguage: LanguageCode = "hi"): BhashiniST
   const startRecording = useCallback(async () => {
     setError(null);
     setInterimTranscript("");
+    finalTranscriptRef.current = "";
 
     if (provider === "webkit") {
       const Ctor = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -202,23 +204,39 @@ export function useBhashiniSTT(initialLanguage: LanguageCode = "hi"): BhashiniST
             combinedInterim = interim;
             setInterimTranscript(interim);
             if (finalText) {
+              finalTranscriptRef.current = `${finalTranscriptRef.current} ${finalText}`.trim();
               setTranscript((prev) => (prev ? `${prev} ${finalText}` : finalText));
             }
           };
           recognition.onerror = (event: any) => {
-            setError(`Speech recognition error: ${event?.error ?? "unknown"}`);
+            const recognitionError = event?.error ?? "unknown";
+            setIsRecording(false);
+            webkitRef.current = null;
+            if (finalResolveRef.current) {
+              const finalResolve = finalResolveRef.current;
+              finalResolveRef.current = null;
+              finalResolve(finalTranscriptRef.current);
+            }
+            setError(
+              recognitionError === "not-allowed"
+                ? "Microphone permission denied. Please allow microphone access and try again."
+                : `Speech recognition error: ${recognitionError}`,
+            );
           };
           recognition.onend = () => {
             setIsRecording(false);
             const finishedText = combinedInterim.trim();
-            if (finishedText) {
-              setTranscript((prev) => (prev ? `${prev} ${finishedText}` : finishedText));
+            const completeText = `${finalTranscriptRef.current} ${finishedText}`.trim();
+            if (completeText) {
+              finalTranscriptRef.current = completeText;
+              setTranscript(completeText);
             }
             if (finalResolveRef.current) {
               const finalResolve = finalResolveRef.current;
               finalResolveRef.current = null;
-              finalResolve(transcript || finishedText || "");
+              finalResolve(completeText);
             }
+            webkitRef.current = null;
             cleanupAudio();
           };
           recognition.start();
@@ -270,7 +288,7 @@ export function useBhashiniSTT(initialLanguage: LanguageCode = "hi"): BhashiniST
         cleanupAudio();
       }
     }
-  }, [provider, language, transcript, startAudioLevelMonitoring, cleanupAudio]);
+  }, [provider, language, startAudioLevelMonitoring, cleanupAudio]);
 
   const stopRecording = useCallback(async (): Promise<string> => {
     if (!isRecording) return transcript;
