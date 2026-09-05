@@ -64,12 +64,12 @@ function hasBrowserSpeechRecognition(): boolean {
 }
 
 const localHosts = new Set(["localhost", "127.0.0.1"]);
+const configuredApiBase = import.meta.env.VITE_API_URL?.replace(/\/$/, "");
+const productionApiBase = configuredApiBase || "https://decodesih2026.onrender.com";
 const API_BASE =
   typeof window !== "undefined" && localHosts.has(window.location.hostname)
     ? "http://localhost:8000/api"
-    : typeof window !== "undefined"
-      ? `${window.location.origin}/api`
-      : "/api";
+    : `${productionApiBase}/api`;
 
 async function detectBackendBhashiniConfigured(): Promise<boolean> {
   try {
